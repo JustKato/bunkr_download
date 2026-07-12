@@ -29,13 +29,27 @@ distrobox enter wails-dev -- bash -lc 'PATH=$HOME/.local/bin:$PATH wails3 dev'
 ## Layout
 
 ```
-main.go       app entry, window
-app.go        scraping, media URLs, preview window
-download.go   batch downloads + progress events
-settings.go   persisted sidebar options
-media_cache.go preview/download cache on disk
+src/          Go application (entry point, services, download logic)
 frontend/     html/css/js + generated bindings
-scripts/      init + build helpers for distrobox
+scripts/      init, build, release helpers
+build/        macOS packaging metadata (Info.plist)
 ```
 
-Tests: `go test ./...` (run inside `wails-dev` if GTK headers aren't on the host).
+Tests: `go test ./src/...` (run inside `wails-dev` if GTK headers aren't on the host).
+
+## Releases
+
+Push a version tag to publish binaries for Linux, Windows, and macOS:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The [Release workflow](.github/workflows/release.yml) uploads:
+
+- `bunkrdownload-linux-amd64`
+- `bunkrdownload-windows-amd64.exe`
+- `bunkrdownload-macos-amd64.dmg`
+
+All builds target 64-bit x86 (`GOARCH=amd64`).

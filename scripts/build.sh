@@ -15,6 +15,7 @@ distrobox enter "$BOX_NAME" -- bash -lc "
     set -euo pipefail
     export PATH=\"\$HOME/.local/bin:\$PATH\"
     cd '$PROJECT_DIR'
+    ./scripts/sync-embed-assets.sh
     echo '==> Generating Wails bindings ...'
     wails3 generate bindings -clean=true -b
     if grep -rq '@wailsio/runtime' frontend/bindings/ 2>/dev/null; then
@@ -23,7 +24,7 @@ distrobox enter "$BOX_NAME" -- bash -lc "
         exit 1
     fi
     mkdir -p build/bin
-    go build -o build/bin/bunkrdownload .
+    go build -o build/bin/bunkrdownload ./src
 "
 
 echo

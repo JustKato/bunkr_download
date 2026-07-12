@@ -8,11 +8,11 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-//go:embed all:frontend
+//go:embed all:embedded/frontend
 var assets embed.FS
 
 func main() {
-	frontend, err := fs.Sub(assets, "frontend")
+	frontend, err := fs.Sub(assets, "embedded/frontend")
 	if err != nil {
 		log.Fatal(err)
 	}
