@@ -1135,6 +1135,68 @@ body {
   color: var(--text-dim);
 }
 
+.status-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-btn {
+  background: var(--panel-light);
+  border: 1px solid var(--bevel-dark);
+  color: var(--text);
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.status-btn:hover {
+  background: var(--accent);
+  color: var(--bg-dark);
+}
+
+.console-body .console-frame {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.console-log {
+  flex: 1;
+  overflow: auto;
+  background: #101410;
+  border: 1px solid var(--bevel-dark);
+  margin: 0 8px 8px;
+  padding: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.console-line {
+  padding: 1px 0;
+}
+
+.console-line.level-error {
+  color: #ffb4b4;
+}
+
+.console-line.level-warn {
+  color: #ffd27a;
+}
+
+.console-line.level-debug {
+  color: #9aa89a;
+}
+
+.console-actions {
+  margin-top: 0;
+}
+
 /* scrollbars */
 ::-webkit-scrollbar {
   width: 14px;

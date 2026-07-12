@@ -74,16 +74,7 @@ export function renderFileInfoBody(container, details) {
 
     const val = document.createElement("span");
     val.className = "info-value";
-    if (value && (label.includes("URL") || label.includes("page") || label.includes("path"))) {
-      const link = document.createElement("a");
-      link.href = value;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.textContent = value;
-      val.append(link);
-    } else {
-      val.textContent = value || "-";
-    }
+    val.textContent = value || "-";
 
     row.append(key, val);
     container.append(row);

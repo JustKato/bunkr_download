@@ -12,7 +12,9 @@ export {
     AlbumFile,
     AlbumHistoryEntry,
     AppSettings,
+    ConsoleEntry,
     DownloadOptions,
     DownloadProgress,
-    FileDetails
+    FileDetails,
+    PreviewMediaSource
 } from "./models.js";

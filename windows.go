@@ -11,6 +11,7 @@ const (
 	windowPreview  = "preview"
 	windowAbout    = "about"
 	windowFileInfo = "file-info"
+	windowConsole  = "console"
 )
 
 var windowBackground = application.RGBA{Red: 38, Green: 42, Blue: 34, Alpha: 255}
@@ -23,20 +24,47 @@ func requireApp() (*application.App, error) {
 	return app, nil
 }
 
-func focusNamedWindow(name, js string) bool {
+func openSecondaryWindow(name string, opts application.WebviewWindowOptions, reloadJS string) error {
 	app, err := requireApp()
 	if err != nil {
-		return false
+		return err
 	}
-	window, ok := app.Window.GetByName(name)
-	if !ok {
-		return false
+
+	opts.Name = name
+	if opts.BackgroundColour.Alpha == 0 && opts.BackgroundColour.Red == 0 &&
+		opts.BackgroundColour.Green == 0 && opts.BackgroundColour.Blue == 0 {
+		opts.BackgroundColour = windowBackground
 	}
-	if js != "" {
-		window.ExecJS(js)
+	if opts.InitialPosition == 0 && opts.X == 0 && opts.Y == 0 {
+		opts.InitialPosition = application.WindowCentered
 	}
-	window.Focus()
-	return true
+
+	appLog("info", "window", "opening %q", name)
+
+	var openErr error
+	application.InvokeSync(func() {
+		if existing, ok := app.Window.GetByName(name); ok {
+			if reloadJS != "" {
+				existing.ExecJS(reloadJS)
+			}
+			existing.Show()
+			existing.Focus()
+			return
+		}
+
+		win := app.Window.NewWithOptions(opts)
+		if win == nil {
+			openErr = fmt.Errorf("failed to create window %q", name)
+			return
+		}
+		win.Show()
+		win.Focus()
+	})
+
+	if openErr != nil {
+		appLog("error", "window", "open %q failed: %v", name, openErr)
+	}
+	return openErr
 }
 
 func closeNamedWindow(name string) {
@@ -50,17 +78,7 @@ func closeNamedWindow(name string) {
 }
 
 func (s *BunkrService) OpenAbout() error {
-	if focusNamedWindow(windowAbout, "") {
-		return nil
-	}
-
-	app, err := requireApp()
-	if err != nil {
-		return err
-	}
-
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name:             windowAbout,
+	return openSecondaryWindow(windowAbout, application.WebviewWindowOptions{
 		Title:            "About Bunkr Downloader",
 		Width:            440,
 		Height:           220,
@@ -68,8 +86,7 @@ func (s *BunkrService) OpenAbout() error {
 		MinHeight:        180,
 		BackgroundColour: windowBackground,
 		URL:              "/about.html",
-	})
-	return nil
+	}, "")
 }
 
 func (s *BunkrService) CloseAbout() {
@@ -81,17 +98,7 @@ func (s *BunkrService) OpenFileInfo(index int) error {
 	s.fileInfoIndex = index
 	s.mu.Unlock()
 
-	if focusNamedWindow(windowFileInfo, "if(window.reloadFileInfo){window.reloadFileInfo();}") {
-		return nil
-	}
-
-	app, err := requireApp()
-	if err != nil {
-		return err
-	}
-
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name:             windowFileInfo,
+	return openSecondaryWindow(windowFileInfo, application.WebviewWindowOptions{
 		Title:            "File Info",
 		Width:            720,
 		Height:           520,
@@ -99,8 +106,7 @@ func (s *BunkrService) OpenFileInfo(index int) error {
 		MinHeight:        360,
 		BackgroundColour: windowBackground,
 		URL:              "/file-info.html",
-	})
-	return nil
+	}, "if(window.reloadFileInfo){window.reloadFileInfo();}")
 }
 
 func (s *BunkrService) CloseFileInfo() {
@@ -111,4 +117,20 @@ func (s *BunkrService) GetFileInfoIndex() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.fileInfoIndex
+}
+
+func (s *BunkrService) OpenConsole() error {
+	return openSecondaryWindow(windowConsole, application.WebviewWindowOptions{
+		Title:            "Console",
+		Width:            860,
+		Height:           520,
+		MinWidth:         560,
+		MinHeight:        320,
+		BackgroundColour: windowBackground,
+		URL:              "/console.html",
+	}, "if(window.reloadConsole){window.reloadConsole();}")
+}
+
+func (s *BunkrService) CloseConsole() {
+	closeNamedWindow(windowConsole)
 }

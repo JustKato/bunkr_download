@@ -24,7 +24,7 @@ func main() {
 			application.NewService(NewBunkrService()),
 		},
 		Assets: application.AssetOptions{
-			Handler: application.AssetFileServerFS(frontend),
+			Handler: newFrontendHandler(frontend),
 		},
 	})
 

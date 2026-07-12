@@ -63,6 +63,7 @@
       <div class="menu-root">
         <button class="menu-trigger" type="button" data-menu="help-menu">HELP</button>
         <div class="menu-dropdown" id="help-menu" hidden>
+          <button type="button" data-action="console">Console</button>
           <button type="button" data-action="about">About Bunkr Downloader</button>
         </div>
       </div>
@@ -81,7 +82,7 @@
         class="address-input"
         type="text"
         spellcheck="false"
-        placeholder="https://example.invalid/album-redacted"
+        placeholder="Paste album URL here"
         autocomplete="off"
       />
       <button id="go-btn" class="go-btn">FETCH</button>
@@ -165,7 +166,10 @@
 
     <footer class="statusbar" id="statusbar">
       <span id="status-text" class="status-text">Ready</span>
-      <span class="status-right">bunkrdownload</span>
+      <div class="status-actions">
+        <button id="console-btn" class="status-btn" type="button">CONSOLE</button>
+        <span class="status-right">bunkrdownload</span>
+      </div>
     </footer>
 
   </div>

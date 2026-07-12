@@ -11,6 +11,16 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as $models from "./models.js";
 
 /**
+ * @param {string} level
+ * @param {string} source
+ * @param {string} message
+ * @returns {$CancellablePromise<void>}
+ */
+export function AppendConsoleLog(level, source, message) {
+    return $Call.ByID(4115252512, level, source, message);
+}
+
+/**
  * @param {number} fileID
  * @returns {$CancellablePromise<void>}
  */
@@ -35,8 +45,22 @@ export function ChooseOutputFolder() {
 /**
  * @returns {$CancellablePromise<void>}
  */
+export function ClearConsoleLogs() {
+    return $Call.ByID(4149219492);
+}
+
+/**
+ * @returns {$CancellablePromise<void>}
+ */
 export function CloseAbout() {
     return $Call.ByID(2906809692);
+}
+
+/**
+ * @returns {$CancellablePromise<void>}
+ */
+export function CloseConsole() {
+    return $Call.ByID(344466356);
 }
 
 /**
@@ -73,11 +97,20 @@ export function GetAlbumHistory() {
 }
 
 /**
+ * @returns {$CancellablePromise<$models.ConsoleEntry[]>}
+ */
+export function GetConsoleLogs() {
+    return $Call.ByID(901440587).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType5($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<$models.DownloadProgress>}
  */
 export function GetDownloadProgress() {
     return $Call.ByID(4034910168).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
+        return $$createType6($result);
     }));
 }
 
@@ -86,7 +119,7 @@ export function GetDownloadProgress() {
  */
 export function GetDownloadedFileIndices() {
     return $Call.ByID(3721437933).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
+        return $$createType7($result);
     }));
 }
 
@@ -96,7 +129,7 @@ export function GetDownloadedFileIndices() {
  */
 export function GetFileDetails(index) {
     return $Call.ByID(743151101, index).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType7($result);
+        return $$createType9($result);
     }));
 }
 
@@ -126,7 +159,7 @@ export function GetPreviewIndex() {
  */
 export function GetSettings() {
     return $Call.ByID(2857995934).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType8($result);
+        return $$createType10($result);
     }));
 }
 
@@ -135,6 +168,13 @@ export function GetSettings() {
  */
 export function OpenAbout() {
     return $Call.ByID(2205366118);
+}
+
+/**
+ * @returns {$CancellablePromise<void>}
+ */
+export function OpenConsole() {
+    return $Call.ByID(3063211362);
 }
 
 /**
@@ -158,6 +198,16 @@ export function OpenOutputFolder() {
  */
 export function OpenPreview(startIndex) {
     return $Call.ByID(2466093983, startIndex);
+}
+
+/**
+ * @param {number} index
+ * @returns {$CancellablePromise<$models.PreviewMediaSource | null>}
+ */
+export function PreparePreviewMedia(index) {
+    return $Call.ByID(1239956952, index).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType12($result);
+    }));
 }
 
 /**
@@ -230,8 +280,12 @@ const $$createType0 = $models.Album.createFrom;
 const $$createType1 = $Create.Nullable($$createType0);
 const $$createType2 = $models.AlbumHistoryEntry.createFrom;
 const $$createType3 = $Create.Array($$createType2);
-const $$createType4 = $models.DownloadProgress.createFrom;
-const $$createType5 = $Create.Array($Create.Any);
-const $$createType6 = $models.FileDetails.createFrom;
-const $$createType7 = $Create.Nullable($$createType6);
-const $$createType8 = $models.AppSettings.createFrom;
+const $$createType4 = $models.ConsoleEntry.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = $models.DownloadProgress.createFrom;
+const $$createType7 = $Create.Array($Create.Any);
+const $$createType8 = $models.FileDetails.createFrom;
+const $$createType9 = $Create.Nullable($$createType8);
+const $$createType10 = $models.AppSettings.createFrom;
+const $$createType11 = $models.PreviewMediaSource.createFrom;
+const $$createType12 = $Create.Nullable($$createType11);

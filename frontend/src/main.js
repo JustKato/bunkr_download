@@ -8,6 +8,7 @@ import {
   GetAlbumHistory,
   GetSettings,
   OpenAbout,
+  OpenConsole,
   OpenFileInfo,
   OpenOutputFolder,
   OpenPreview,
@@ -17,9 +18,13 @@ import {
   SetOutputFolder,
   StartDownload,
 } from "../bindings/github.com/justkato/bunkr_download/bunkrservice.js";
+import { DownloadOptions } from "../bindings/github.com/justkato/bunkr_download/models.js";
 import { initContextMenu } from "./context-menu.js";
 import { initHistoryPicker } from "./history-picker.js";
+import { installLogger, log } from "./logger.js";
 import { initMenu } from "./menu.js";
+
+installLogger();
 
 const input = document.getElementById("url-input");
 const historyPickerRoot = document.getElementById("history-picker");
@@ -46,6 +51,7 @@ const outputFolderInput = document.getElementById("output-folder");
 const browseFolderBtn = document.getElementById("browse-folder-btn");
 const downloadBtn = document.getElementById("download-btn");
 const cancelDownloadBtn = document.getElementById("cancel-download-btn");
+const consoleBtn = document.getElementById("console-btn");
 const filterImage = document.getElementById("filter-image");
 const filterVideo = document.getElementById("filter-video");
 const filterAudio = document.getElementById("filter-audio");
@@ -60,6 +66,7 @@ const fileContextMenu = document.getElementById("file-context-menu");
 
 let currentAlbum = null;
 let downloadRunning = false;
+let progressPollTimer = null;
 const rowStatus = new Map();
 let saveSettingsTimer = null;
 let currentPage = 1;
@@ -526,12 +533,34 @@ async function chooseOutputFolder() {
   }
 }
 
+function beginProgressPolling() {
+  stopProgressPolling();
+  progressPollTimer = setInterval(async () => {
+    try {
+      const snapshot = await GetDownloadProgress();
+      if (snapshot) {
+        handleDownloadProgress(snapshot);
+      }
+    } catch (error) {
+      log.warn("download", error instanceof Error ? error.message : String(error));
+    }
+  }, 500);
+}
+
+function stopProgressPolling() {
+  if (progressPollTimer) {
+    clearInterval(progressPollTimer);
+    progressPollTimer = null;
+  }
+}
+
 async function startDownload() {
   if (!currentAlbum) {
     setStatus("Load an album first", true);
     return;
   }
 
+  log.info("download", "Download Album clicked");
   resetProgressUI(0);
   rowStatus.clear();
   fileList.querySelectorAll(".file-status").forEach((badge) => {
@@ -539,19 +568,14 @@ async function startDownload() {
   });
 
   try {
-    await StartDownload(getDownloadOptions());
+    await StartDownload(new DownloadOptions(getDownloadOptions()));
     downloadRunning = true;
     updateDownloadControls();
     setStatus("Download started");
-
-    try {
-      const snapshot = await GetDownloadProgress();
-      if (snapshot) {
-        handleDownloadProgress(snapshot);
-      }
-    } catch {}
+    beginProgressPolling();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    log.error("download", message);
     setStatus(`Download failed: ${message}`, true);
   }
 }
@@ -621,16 +645,21 @@ function handleDownloadProgress(progress) {
       rowStatus.set(progress.currentIndex, progress.cancelled ? "CANCELLED" : "FAILED");
       updateRowBadge(progress.currentIndex);
     }
+    log.error("download", progress.error);
     setStatus(`Download failed: ${progress.error}`, true);
+    stopProgressPolling();
     return;
   }
 
   if (progress.running) {
     if (progress.currentName) {
-      setStatus(`Downloading ${progress.currentName}`);
+      const phase = progress.fileStatus ? ` (${progress.fileStatus})` : "";
+      setStatus(`Downloading ${progress.currentName}${phase}`);
     }
     return;
   }
+
+  stopProgressPolling();
 
   if (progress.cancelled) {
     setStatus("Download cancelled", true);
@@ -667,21 +696,17 @@ async function downloadSingleFile(index) {
     return;
   }
 
+  log.info("download", `single file download requested for index ${index}`);
   resetProgressUI(1);
   try {
     await DownloadFileAtIndex(index);
     downloadRunning = true;
     updateDownloadControls();
     setStatus("Download started");
-
-    try {
-      const snapshot = await GetDownloadProgress();
-      if (snapshot) {
-        handleDownloadProgress(snapshot);
-      }
-    } catch {}
+    beginProgressPolling();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    log.error("download", message);
     setStatus(`Download failed: ${message}`, true);
   }
 }
@@ -862,6 +887,7 @@ async function onFetch() {
     return;
   }
 
+  log.info("fetch", `scraping album: ${raw}`);
   setLoading(true);
   setEmptyStateLoading("FETCHING ALBUM...");
   setStatus("Scraping album...");
@@ -882,6 +908,7 @@ async function onFetch() {
     setStatus(`Loaded ${album.files.length} files`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    log.error("fetch", message);
     showEmptyStateDefault();
     setStatus(`Scrape failed: ${message}`, true);
   } finally {
@@ -905,6 +932,19 @@ function showAbout() {
     const message = error instanceof Error ? error.message : String(error);
     setStatus(`About window failed: ${message}`, true);
   });
+}
+
+async function showConsole() {
+  log.info("console", "console open requested");
+  try {
+    setStatus("Opening console...");
+    await OpenConsole();
+    setStatus("Console opened");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    log.error("console", message);
+    setStatus(`Console failed: ${message}`, true);
+  }
 }
 
 const historyPicker =
@@ -934,6 +974,7 @@ const menuControls = initMenu({
   "pagination-mode-infinite": () => setPaginationMode("infinite-scroll"),
   "view-mode-list": () => setViewMode("list"),
   "view-mode-gallery": () => setViewMode("gallery"),
+  console: () => showConsole(),
   about: () => showAbout(),
 });
 
@@ -959,6 +1000,7 @@ pageNextBtn?.addEventListener("click", () => {
 browseFolderBtn.addEventListener("click", () => chooseOutputFolder());
 downloadBtn.addEventListener("click", () => startDownload());
 cancelDownloadBtn.addEventListener("click", () => cancelDownload());
+consoleBtn?.addEventListener("click", () => showConsole());
 
 const fileMenu = fileContextMenu
   ? initContextMenu(fileContextMenu, {

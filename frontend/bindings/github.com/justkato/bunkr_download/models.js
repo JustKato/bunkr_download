@@ -252,6 +252,55 @@ export class AppSettings {
     }
 }
 
+export class ConsoleEntry {
+    /**
+     * Creates a new ConsoleEntry instance.
+     * @param {Partial<ConsoleEntry>} [$$source = {}] - The source object to create the ConsoleEntry.
+     */
+    constructor($$source = {}) {
+        if (!("time" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["time"] = 0;
+        }
+        if (!("level" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["level"] = "";
+        }
+        if (!("source" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["source"] = "";
+        }
+        if (!("message" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["message"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ConsoleEntry instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ConsoleEntry}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ConsoleEntry(/** @type {Partial<ConsoleEntry>} */($$parsedSource));
+    }
+}
+
 export class DownloadOptions {
     /**
      * Creates a new DownloadOptions instance.
@@ -502,6 +551,41 @@ export class FileDetails {
     static createFrom($$source = {}) {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new FileDetails(/** @type {Partial<FileDetails>} */($$parsedSource));
+    }
+}
+
+export class PreviewMediaSource {
+    /**
+     * Creates a new PreviewMediaSource instance.
+     * @param {Partial<PreviewMediaSource>} [$$source = {}] - The source object to create the PreviewMediaSource.
+     */
+    constructor($$source = {}) {
+        if (!("url" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["url"] = "";
+        }
+        if (!("kind" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["kind"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PreviewMediaSource instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {PreviewMediaSource}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PreviewMediaSource(/** @type {Partial<PreviewMediaSource>} */($$parsedSource));
     }
 }
 

@@ -1,13 +1,15 @@
 import {
-  CacheMediaFile,
   DownloadFileAtIndex,
   GetActiveAlbum,
   GetPreviewIndex,
   OpenFileInfo,
-  ResolveMediaURL,
+  PreparePreviewMedia,
   SetPreviewIndex,
 } from "../bindings/github.com/justkato/bunkr_download/bunkrservice.js";
 import { initContextMenu } from "./context-menu.js";
+import { installLogger, log } from "./logger.js";
+
+installLogger();
 
 const previewName = document.getElementById("preview-name");
 const previewCounter = document.getElementById("preview-counter");
@@ -201,19 +203,14 @@ function resetView() {
   updateToolbar();
 }
 
-async function resolveMedia(file) {
-  if (isPDF(file)) {
-    if (file.fileID > 0) {
-      return ResolveMediaURL(file.fileID);
-    }
-    return "";
+async function resolveMedia(index) {
+  log.info("preview", `preparing preview for index ${index}`);
+  const source = await PreparePreviewMedia(index);
+  if (!source || !source.url) {
+    throw new Error("Could not prepare preview media");
   }
-
-  if ((isImage(file) || isVideo(file)) && file.fileID > 0) {
-    return ResolveMediaURL(file.fileID);
-  }
-
-  return "";
+  log.info("preview", `preview source ready: ${source.url} (${source.kind})`);
+  return source;
 }
 
 function clearMediaViews() {
@@ -241,23 +238,28 @@ async function renderCurrent() {
   clearMediaViews();
   updateToolbar();
 
-  let mediaURL = "";
+  let mediaSource = null;
   try {
-    mediaURL = await resolveMedia(file);
+    mediaSource = await resolveMedia(albumIndex);
   } catch (error) {
-    previewMessage.textContent =
-      error instanceof Error ? error.message : "Could not load image";
+    const message = error instanceof Error ? error.message : "Could not load preview";
+    log.error("preview", message);
+    previewMessage.textContent = message;
+    previewMessage.classList.add("error");
     return;
   }
 
+  const mediaURL = mediaSource.url;
   if (!mediaURL) {
-    previewMessage.textContent = "Could not load image";
+    previewMessage.textContent = "Could not load preview";
+    previewMessage.classList.add("error");
     return;
   }
 
   previewMessage.hidden = true;
+  previewMessage.classList.remove("error");
 
-  if (isPDF(file)) {
+  if (isPDF(file) || mediaSource.kind === "pdf") {
     previewMediaWrap.hidden = false;
     const iframe = document.createElement("iframe");
     iframe.src = mediaURL;
@@ -267,12 +269,17 @@ async function renderCurrent() {
     return;
   }
 
-  if (isVideo(file)) {
+  if (isVideo(file) || mediaSource.kind === "video") {
     previewMediaWrap.hidden = false;
     const video = document.createElement("video");
     video.src = mediaURL;
     video.controls = true;
     video.autoplay = true;
+    video.addEventListener("error", () => {
+      previewMessage.hidden = false;
+      previewMessage.textContent = "Video failed to load";
+      previewMessage.classList.add("error");
+    });
     previewMediaWrap.append(video);
     updateToolbar();
     return;
@@ -288,16 +295,17 @@ async function renderCurrent() {
 
   img.addEventListener("load", () => {
     fitImageToViewport(img);
-    if (file.fileID > 0) {
-      CacheMediaFile(file.fileID).catch(() => {});
-    }
+  });
+
+  img.addEventListener("error", () => {
+    previewMessage.hidden = false;
+    previewMessage.textContent = "Image failed to load";
+    previewMessage.classList.add("error");
+    log.error("preview", `image load failed for ${mediaURL}`);
   });
 
   if (img.complete && img.naturalWidth > 0) {
     fitImageToViewport(img);
-    if (file.fileID > 0) {
-      CacheMediaFile(file.fileID).catch(() => {});
-    }
   }
 }
 

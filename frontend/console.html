@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Console</title>
+  <link rel="stylesheet" href="src/style.css" />
+</head>
+<body class="dialog-body console-body">
+  <div class="dialog-frame console-frame">
+    <header class="dialog-header">CONSOLE</header>
+    <div id="console-log" class="console-log" aria-live="polite"></div>
+    <footer class="dialog-actions console-actions">
+      <button id="console-copy-btn" class="sidebar-btn" type="button">COPY</button>
+      <button id="console-clear-btn" class="sidebar-btn" type="button">CLEAR</button>
+      <button id="console-close-btn" class="sidebar-btn primary" type="button">CLOSE</button>
+    </footer>
+  </div>
+  <script type="module" src="src/console.js"></script>
+</body>
+</html>

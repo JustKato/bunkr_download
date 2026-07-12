@@ -104,7 +104,15 @@ func (s *BunkrService) GetFileDetails(index int) (*FileDetails, error) {
 
 func (s *BunkrService) DownloadFileAtIndex(index int) error {
 	if atomic.LoadInt32(&s.downloadRunning) == 1 {
-		return fmt.Errorf("download already in progress")
+		s.mu.RLock()
+		cancel := s.downloadCancel
+		running := s.downloadProgress.Running
+		s.mu.RUnlock()
+		if cancel != nil || running {
+			return fmt.Errorf("download already in progress")
+		}
+		atomic.StoreInt32(&s.downloadRunning, 0)
+		appLog("warn", "download", "recovered stale download state")
 	}
 
 	file, album, err := s.albumFileAt(index)
@@ -122,10 +130,19 @@ func (s *BunkrService) DownloadFileAtIndex(index int) error {
 		return fmt.Errorf("output folder not found: %s", outputFolder)
 	}
 
+	appLog("info", "download", "starting single file download: %q", file.Name)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s.mu.Lock()
 	s.downloadCancel = cancel
 	s.mu.Unlock()
+
+	s.emitDownloadProgress(DownloadProgress{
+		Running:        true,
+		CompletedCount: 0,
+		TotalCount:     1,
+		FileStatus:     "starting",
+	})
 
 	go s.runDownload(ctx, album, outputFolder, []AlbumFile{file})
 	return nil

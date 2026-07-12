@@ -217,13 +217,17 @@ func (s *BunkrService) OpenPreview(startIndex int) error {
 
 	s.SetPreviewIndex(startIndex)
 
+	reloadJS := fmt.Sprintf("if(window.previewGoTo){window.previewGoTo(%d);}", startIndex)
 	if window, ok := app.Window.GetByName(windowPreview); ok {
-		window.ExecJS(fmt.Sprintf("if(window.previewGoTo){window.previewGoTo(%d);}", startIndex))
-		window.Focus()
+		application.InvokeSync(func() {
+			window.ExecJS(reloadJS)
+			window.Show()
+			window.Focus()
+		})
 		return nil
 	}
 
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
+	opts := application.WebviewWindowOptions{
 		Name:             windowPreview,
 		Title:            "Preview",
 		Width:            920,
@@ -232,11 +236,25 @@ func (s *BunkrService) OpenPreview(startIndex int) error {
 		MinHeight:        480,
 		BackgroundColour: windowBackground,
 		URL:              "/preview.html",
+		InitialPosition:  application.WindowCentered,
+	}
+
+	appLog("info", "window", "opening %q", windowPreview)
+	application.InvokeSync(func() {
+		win := app.Window.NewWithOptions(opts)
+		if win != nil {
+			win.Show()
+			win.Focus()
+		}
 	})
 	return nil
 }
 
 func (s *BunkrService) ResolveMediaURL(fileID int64) (string, error) {
+	return s.resolveMediaURLWithContext(context.Background(), fileID)
+}
+
+func (s *BunkrService) resolveMediaURLWithContext(ctx context.Context, fileID int64) (string, error) {
 	if fileID <= 0 {
 		return "", fmt.Errorf("invalid file id")
 	}
@@ -248,7 +266,7 @@ func (s *BunkrService) ResolveMediaURL(fileID int64) (string, error) {
 	}
 	s.mu.RUnlock()
 
-	mediaURL, err := s.resolveMediaURLUncached(fileID)
+	mediaURL, err := s.resolveMediaURLUncached(ctx, fileID)
 	if err != nil {
 		return "", err
 	}
@@ -259,15 +277,15 @@ func (s *BunkrService) ResolveMediaURL(fileID int64) (string, error) {
 	return mediaURL, nil
 }
 
-func (s *BunkrService) resolveMediaURLUncached(fileID int64) (string, error) {
+func (s *BunkrService) resolveMediaURLUncached(ctx context.Context, fileID int64) (string, error) {
 	referer := fmt.Sprintf("%s/file/%d", bunkrDownloadRef, fileID)
 	payload, err := mediaAPIRequestBody(fileID)
 	if err != nil {
 		return "", err
 	}
 
-	response, err := s.doRequestWithRetry(context.Background(), s.client, s.apiGate, func() (*http.Request, error) {
-		req, reqErr := http.NewRequest(http.MethodPost, bunkrAPIEndpoint, strings.NewReader(string(payload)))
+	response, err := s.doRequestWithRetry(ctx, s.client, s.apiGate, func() (*http.Request, error) {
+		req, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, bunkrAPIEndpoint, strings.NewReader(string(payload)))
 		if reqErr != nil {
 			return nil, reqErr
 		}
@@ -308,7 +326,7 @@ func (s *BunkrService) resolveMediaURLUncached(fileID int64) (string, error) {
 		mediaURL = decrypted
 	}
 
-	return s.maybeSignCDNURL(mediaURL)
+	return s.maybeSignCDNURL(ctx, mediaURL)
 }
 
 func mediaAPIRequestBody(fileID int64) ([]byte, error) {
@@ -317,7 +335,7 @@ func mediaAPIRequestBody(fileID int64) ([]byte, error) {
 	})
 }
 
-func (s *BunkrService) maybeSignCDNURL(rawURL string) (string, error) {
+func (s *BunkrService) maybeSignCDNURL(ctx context.Context, rawURL string) (string, error) {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
 		return "", fmt.Errorf("parsing media URL: %w", err)
@@ -325,18 +343,18 @@ func (s *BunkrService) maybeSignCDNURL(rawURL string) (string, error) {
 	if !strings.Contains(parsed.Host, "cdn.cr") {
 		return rawURL, nil
 	}
-	return s.signCDNURL(parsed)
+	return s.signCDNURL(ctx, parsed)
 }
 
-func (s *BunkrService) signCDNURL(parsed *url.URL) (string, error) {
+func (s *BunkrService) signCDNURL(ctx context.Context, parsed *url.URL) (string, error) {
 	if parsed.Scheme == "" || parsed.Host == "" || parsed.Path == "" {
 		return "", fmt.Errorf("invalid CDN URL")
 	}
 
 	signRequestURL := bunkrCDNSignAPI + "?path=" + url.QueryEscape(parsed.Path)
 
-	response, err := s.doRequestWithRetry(context.Background(), s.client, s.apiGate, func() (*http.Request, error) {
-		req, reqErr := http.NewRequest(http.MethodGet, signRequestURL, nil)
+	response, err := s.doRequestWithRetry(ctx, s.client, s.apiGate, func() (*http.Request, error) {
+		req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, signRequestURL, nil)
 		if reqErr != nil {
 			return nil, reqErr
 		}

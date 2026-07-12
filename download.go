@@ -114,7 +114,15 @@ func (s *BunkrService) StartDownload(opts DownloadOptions) error {
 	}
 
 	if atomic.LoadInt32(&s.downloadRunning) == 1 {
-		return fmt.Errorf("download already in progress")
+		s.mu.RLock()
+		cancel := s.downloadCancel
+		running := s.downloadProgress.Running
+		s.mu.RUnlock()
+		if cancel != nil || running {
+			return fmt.Errorf("download already in progress")
+		}
+		atomic.StoreInt32(&s.downloadRunning, 0)
+		appLog("warn", "download", "recovered stale download state")
 	}
 
 	filtered := filterDownloadFiles(album.Files, opts)
@@ -122,10 +130,19 @@ func (s *BunkrService) StartDownload(opts DownloadOptions) error {
 		return fmt.Errorf("no files match the current filters")
 	}
 
+	appLog("info", "download", "starting album download: %d files to %q", len(filtered), outputFolder)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s.mu.Lock()
 	s.downloadCancel = cancel
 	s.mu.Unlock()
+
+	s.emitDownloadProgress(DownloadProgress{
+		Running:        true,
+		CompletedCount: 0,
+		TotalCount:     len(filtered),
+		FileStatus:     "starting",
+	})
 
 	go s.runDownload(ctx, album, outputFolder, filtered)
 	return nil
@@ -138,10 +155,12 @@ func (s *BunkrService) runDownload(ctx context.Context, album *Album, outputFold
 		s.mu.Lock()
 		s.downloadCancel = nil
 		s.mu.Unlock()
+		appLog("info", "download", "download worker finished")
 	}()
 
 	albumDir := filepath.Join(outputFolder, sanitizePathName(album.Title))
 	if err := os.MkdirAll(albumDir, 0o755); err != nil {
+		appLog("error", "download", "creating album folder: %v", err)
 		s.emitDownloadProgress(DownloadProgress{
 			Running: false,
 			Error:   fmt.Sprintf("creating album folder: %v", err),
@@ -199,7 +218,7 @@ func (s *BunkrService) runDownload(ctx context.Context, album *Album, outputFold
 			CurrentTotal:   file.SizeBytes,
 			CompletedCount: completed,
 			TotalCount:     total,
-			FileStatus:     "downloading",
+			FileStatus:     "resolving",
 		})
 
 		if err := s.downloadGate.Wait(ctx); err != nil {
@@ -212,6 +231,17 @@ func (s *BunkrService) runDownload(ctx context.Context, album *Album, outputFold
 			})
 			return
 		}
+
+		s.emitDownloadProgress(DownloadProgress{
+			Running:        true,
+			CurrentName:    file.Name,
+			CurrentIndex:   fileIndex,
+			CurrentBytes:   0,
+			CurrentTotal:   file.SizeBytes,
+			CompletedCount: completed,
+			TotalCount:     total,
+			FileStatus:     "downloading",
+		})
 
 		err := s.downloadFile(ctx, file, destPath, func(bytesDone, bytesTotal int64) {
 			s.emitDownloadProgress(DownloadProgress{
@@ -231,6 +261,7 @@ func (s *BunkrService) runDownload(ctx context.Context, album *Album, outputFold
 				cancelled = true
 				break
 			}
+			appLog("error", "download", "failed for %q: %v", file.Name, err)
 			s.emitDownloadProgress(DownloadProgress{
 				Running:        false,
 				Cancelled:      true,
@@ -267,10 +298,12 @@ func (s *BunkrService) runDownload(ctx context.Context, album *Album, outputFold
 
 func (s *BunkrService) downloadFile(ctx context.Context, file AlbumFile, destPath string, onProgress func(int64, int64)) error {
 	if cachedPath, ok := s.cachedMediaPath(file.FileID, file.Name, file.SizeBytes); ok {
+		appLog("info", "download", "copying cached file %q", file.Name)
 		return copyCachedFile(ctx, cachedPath, destPath, file.SizeBytes, onProgress)
 	}
 
-	mediaURL, err := s.ResolveMediaURL(file.FileID)
+	appLog("info", "download", "resolving media URL for %q (fileID=%d)", file.Name, file.FileID)
+	mediaURL, err := s.resolveMediaURLWithContext(ctx, file.FileID)
 	if err != nil {
 		return err
 	}
@@ -278,7 +311,7 @@ func (s *BunkrService) downloadFile(ctx context.Context, file AlbumFile, destPat
 	referer := fmt.Sprintf("%s/file/%d", bunkrDownloadRef, file.FileID)
 
 	response, err := s.doRequestWithRetry(ctx, s.downloadClient, nil, func() (*http.Request, error) {
-		req, reqErr := http.NewRequest(http.MethodGet, mediaURL, nil)
+		req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, mediaURL, nil)
 		if reqErr != nil {
 			return nil, reqErr
 		}
