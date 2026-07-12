@@ -22,9 +22,11 @@ mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 cp "$BINARY" "$APP_DIR/Contents/MacOS/bunkrdownload"
 chmod +x "$APP_DIR/Contents/MacOS/bunkrdownload"
 
-if [[ -f "$ROOT/build/darwin/icons.icns" ]]; then
-  cp "$ROOT/build/darwin/icons.icns" "$APP_DIR/Contents/Resources/icons.icns"
+if [[ ! -f "$ROOT/build/darwin/icons.icns" ]]; then
+  echo "ERROR: missing macOS application icon: build/darwin/icons.icns" >&2
+  exit 1
 fi
+cp "$ROOT/build/darwin/icons.icns" "$APP_DIR/Contents/Resources/icons.icns"
 
 if [[ -f "$ROOT/build/darwin/Info.plist" ]]; then
   sed \

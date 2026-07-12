@@ -10,19 +10,48 @@ import (
 
 const settingsAppName = "bunkrdownload"
 
+const (
+	defaultPageSize           = 25
+	minPageSize               = 10
+	maxPageSize               = 100
+	defaultMaxAlbumHistory    = 1000
+	minMaxAlbumHistory        = 50
+	maxMaxAlbumHistoryLimit   = 5000
+	defaultMaxHTTPRetries     = 5
+	minMaxHTTPRetries         = 0
+	maxMaxHTTPRetries         = 10
+	defaultParallelDownloads  = 1
+	minParallelDownloads      = 1
+	maxParallelDownloads      = 8
+)
+
 type AppSettings struct {
-	OutputFolder    string   `json:"outputFolder"`
-	FilterTypes     []string `json:"filterTypes"`
-	IncludePatterns string   `json:"includePatterns"`
-	PaginationMode  string   `json:"paginationMode"`
-	ViewMode        string   `json:"viewMode"`
+	OutputFolder               string   `json:"outputFolder"`
+	FilterTypes                []string `json:"filterTypes"`
+	IncludePatterns            string   `json:"includePatterns"`
+	PaginationMode             string   `json:"paginationMode"`
+	ViewMode                   string   `json:"viewMode"`
+	OpenOutputFolderOnComplete bool     `json:"openOutputFolderOnComplete"`
+	PageSize                   int      `json:"pageSize"`
+	MaxAlbumHistory            int      `json:"maxAlbumHistory"`
+	SkipExistingFiles          bool     `json:"skipExistingFiles"`
+	CreateAlbumSubfolder       bool     `json:"createAlbumSubfolder"`
+	ContinueOnFileFailure      bool     `json:"continueOnFileFailure"`
+	MaxHTTPRetries             int      `json:"maxHttpRetries"`
+	ParallelDownloads          int      `json:"parallelDownloads"`
 }
 
 func defaultAppSettings() AppSettings {
 	return AppSettings{
-		FilterTypes:    []string{"Image", "Video", "Audio", "File"},
-		PaginationMode: "pagination",
-		ViewMode:       "list",
+		FilterTypes:          []string{"Image", "Video", "Audio", "File"},
+		PaginationMode:       "pagination",
+		ViewMode:             "list",
+		PageSize:             defaultPageSize,
+		MaxAlbumHistory:      defaultMaxAlbumHistory,
+		SkipExistingFiles:      true,
+		CreateAlbumSubfolder:   true,
+		MaxHTTPRetries:         defaultMaxHTTPRetries,
+		ParallelDownloads:      defaultParallelDownloads,
 	}
 }
 
@@ -38,6 +67,39 @@ func normalizeViewMode(value string) string {
 		return "gallery"
 	}
 	return "list"
+}
+
+func normalizeAppSettings(settings AppSettings) AppSettings {
+	if len(settings.FilterTypes) == 0 {
+		settings.FilterTypes = defaultAppSettings().FilterTypes
+	}
+	settings.PaginationMode = normalizePaginationMode(settings.PaginationMode)
+	settings.ViewMode = normalizeViewMode(settings.ViewMode)
+	if settings.PageSize <= 0 {
+		settings.PageSize = defaultPageSize
+	} else if settings.PageSize > maxPageSize {
+		settings.PageSize = maxPageSize
+	} else if settings.PageSize < minPageSize {
+		settings.PageSize = minPageSize
+	}
+	if settings.MaxAlbumHistory <= 0 {
+		settings.MaxAlbumHistory = defaultMaxAlbumHistory
+	} else if settings.MaxAlbumHistory > maxMaxAlbumHistoryLimit {
+		settings.MaxAlbumHistory = maxMaxAlbumHistoryLimit
+	} else if settings.MaxAlbumHistory < minMaxAlbumHistory {
+		settings.MaxAlbumHistory = minMaxAlbumHistory
+	}
+	if settings.MaxHTTPRetries < minMaxHTTPRetries {
+		settings.MaxHTTPRetries = minMaxHTTPRetries
+	} else if settings.MaxHTTPRetries > maxMaxHTTPRetries {
+		settings.MaxHTTPRetries = maxMaxHTTPRetries
+	}
+	if settings.ParallelDownloads <= 0 {
+		settings.ParallelDownloads = defaultParallelDownloads
+	} else if settings.ParallelDownloads > maxParallelDownloads {
+		settings.ParallelDownloads = maxParallelDownloads
+	}
+	return settings
 }
 
 func settingsFilePath() (string, error) {
@@ -66,12 +128,7 @@ func loadAppSettings() (AppSettings, error) {
 	if err := json.Unmarshal(data, &settings); err != nil {
 		return defaultAppSettings(), fmt.Errorf("parsing settings: %w", err)
 	}
-	if len(settings.FilterTypes) == 0 {
-		settings.FilterTypes = defaultAppSettings().FilterTypes
-	}
-	settings.PaginationMode = normalizePaginationMode(settings.PaginationMode)
-	settings.ViewMode = normalizeViewMode(settings.ViewMode)
-	return settings, nil
+	return normalizeAppSettings(settings), nil
 }
 
 func saveAppSettings(settings AppSettings) error {
@@ -84,6 +141,7 @@ func saveAppSettings(settings AppSettings) error {
 		return fmt.Errorf("creating settings directory: %w", err)
 	}
 
+	settings = normalizeAppSettings(settings)
 	data, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encoding settings: %w", err)
@@ -106,19 +164,40 @@ func (s *BunkrService) GetSettings() AppSettings {
 	return s.settings
 }
 
+func (s *BunkrService) maxHTTPRetries() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.settings.MaxHTTPRetries < minMaxHTTPRetries {
+		return defaultMaxHTTPRetries
+	}
+	if s.settings.MaxHTTPRetries > maxMaxHTTPRetries {
+		return maxMaxHTTPRetries
+	}
+	return s.settings.MaxHTTPRetries
+}
+
+func (s *BunkrService) maxAlbumHistoryLimit() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.settings.MaxAlbumHistory <= 0 {
+		return defaultMaxAlbumHistory
+	}
+	return s.settings.MaxAlbumHistory
+}
+
 func (s *BunkrService) SaveSettings(settings AppSettings) error {
 	settings.OutputFolder = strings.TrimSpace(settings.OutputFolder)
 	settings.IncludePatterns = strings.TrimSpace(settings.IncludePatterns)
-	if len(settings.FilterTypes) == 0 {
-		settings.FilterTypes = defaultAppSettings().FilterTypes
-	}
-	settings.PaginationMode = normalizePaginationMode(settings.PaginationMode)
-	settings.ViewMode = normalizeViewMode(settings.ViewMode)
+	settings = normalizeAppSettings(settings)
 
 	s.mu.Lock()
 	s.settings = settings
 	s.outputFolder = settings.OutputFolder
 	s.mu.Unlock()
+
+	if err := trimAlbumHistoryToLimit(settings.MaxAlbumHistory); err != nil {
+		return err
+	}
 
 	return saveAppSettings(settings)
 }
@@ -138,6 +217,20 @@ func (s *BunkrService) SetOutputFolder(path string) error {
 func (s *BunkrService) applyLoadedSettings(settings AppSettings) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.settings = settings
-	s.outputFolder = settings.OutputFolder
+	s.settings = normalizeAppSettings(settings)
+	s.outputFolder = s.settings.OutputFolder
+}
+
+func trimAlbumHistoryToLimit(limit int) error {
+	if limit <= 0 {
+		limit = defaultMaxAlbumHistory
+	}
+	history, err := loadAlbumHistory()
+	if err != nil {
+		return err
+	}
+	if len(history) <= limit {
+		return nil
+	}
+	return saveAlbumHistory(history[:limit])
 }

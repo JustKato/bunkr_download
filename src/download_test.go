@@ -3,6 +3,7 @@ package main
 import (
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestCleanDisplayNameStripsWeirdRunes(t *testing.T) {
@@ -29,10 +30,16 @@ func TestSanitizeFileName(t *testing.T) {
 
 func TestDownloadDestPathUsesSanitizedNames(t *testing.T) {
 	file := AlbumFile{Name: "My Photo.jpg"}
-	got := downloadDestPath("/tmp/out", "Album: One", file)
+	got := downloadDestPath("/tmp/out", "Album: One", file, true)
 	want := filepath.Join("/tmp/out", "Album_One", "My_Photo.jpg")
 	if got != want {
 		t.Fatalf("unexpected dest path: %q", got)
+	}
+
+	flat := downloadDestPath("/tmp/out", "Album: One", file, false)
+	flatWant := filepath.Join("/tmp/out", "My_Photo.jpg")
+	if flat != flatWant {
+		t.Fatalf("unexpected flat dest path: %q", flat)
 	}
 }
 
@@ -78,6 +85,65 @@ func TestMatchesIncludePatterns(t *testing.T) {
 	}
 	if matchesIncludePatterns("notes.txt", patterns) {
 		t.Fatal("expected notes.txt to be rejected")
+	}
+}
+
+func TestComputeETASeconds(t *testing.T) {
+	remaining := computeETASeconds(50, 100, 10*time.Second)
+	if remaining < 9.5 || remaining > 10.5 {
+		t.Fatalf("expected ~10s remaining, got %v", remaining)
+	}
+	if got := formatETA(remaining); got != "10s" {
+		t.Fatalf("unexpected eta format: %q", got)
+	}
+	if computeETASeconds(0, 100, time.Second) >= 0 {
+		t.Fatal("expected invalid eta for zero progress")
+	}
+}
+
+func TestProgressTrackerBytes(t *testing.T) {
+	tracker := newProgressTracker(2, 200)
+	file := AlbumFile{FileID: 1, Name: "a.jpg", SizeBytes: 100}
+	tracker.markDone(file, 0)
+	snap := tracker.snapshot(true, false, "")
+	if snap.CompletedBytes != 100 || snap.CompletedCount != 1 {
+		t.Fatalf("unexpected snapshot after done: %#v", snap)
+	}
+	tracker.updateActive(AlbumFile{FileID: 2, Name: "b.jpg", SizeBytes: 100}, 1, 40, 100, "downloading")
+	snap = tracker.snapshot(true, false, "")
+	if snap.CompletedBytes != 140 {
+		t.Fatalf("expected active bytes included, got %d", snap.CompletedBytes)
+	}
+}
+
+func TestNormalizeAppSettingsDefaults(t *testing.T) {
+	settings := normalizeAppSettings(defaultAppSettings())
+	if settings.PageSize != defaultPageSize {
+		t.Fatalf("expected default page size, got %d", settings.PageSize)
+	}
+	if settings.ParallelDownloads != defaultParallelDownloads {
+		t.Fatalf("expected default parallel downloads, got %d", settings.ParallelDownloads)
+	}
+	if !settings.SkipExistingFiles || !settings.CreateAlbumSubfolder {
+		t.Fatal("expected default download behavior flags")
+	}
+}
+
+func TestNormalizeAppSettingsClamps(t *testing.T) {
+	settings := normalizeAppSettings(AppSettings{
+		PageSize:          3,
+		MaxAlbumHistory:   99999,
+		MaxHTTPRetries:    99,
+		ParallelDownloads: 99,
+	})
+	if settings.PageSize != minPageSize {
+		t.Fatalf("expected clamped page size, got %d", settings.PageSize)
+	}
+	if settings.MaxAlbumHistory != maxMaxAlbumHistoryLimit {
+		t.Fatalf("expected clamped history limit, got %d", settings.MaxAlbumHistory)
+	}
+	if settings.ParallelDownloads != maxParallelDownloads {
+		t.Fatalf("expected clamped parallel downloads, got %d", settings.ParallelDownloads)
 	}
 }
 

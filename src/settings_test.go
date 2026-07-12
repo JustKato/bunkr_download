@@ -17,6 +17,12 @@ func TestDefaultAppSettings(t *testing.T) {
 	if settings.ViewMode != "list" {
 		t.Fatalf("expected default view mode list, got %q", settings.ViewMode)
 	}
+	if settings.PageSize != defaultPageSize {
+		t.Fatalf("expected default page size, got %d", settings.PageSize)
+	}
+	if !settings.SkipExistingFiles || !settings.CreateAlbumSubfolder {
+		t.Fatal("expected default download flags enabled")
+	}
 }
 
 func TestSaveAndLoadAppSettings(t *testing.T) {

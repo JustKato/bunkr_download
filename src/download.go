@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -31,6 +32,9 @@ type DownloadProgress struct {
 	CurrentTotal   int64  `json:"currentTotal"`
 	CompletedCount int    `json:"completedCount"`
 	TotalCount     int    `json:"totalCount"`
+	TotalBytes     int64  `json:"totalBytes"`
+	CompletedBytes int64  `json:"completedBytes"`
+	StartedAtMs    int64  `json:"startedAtMs"`
 	FileStatus     string `json:"fileStatus"`
 	Error          string `json:"error"`
 }
@@ -158,142 +162,130 @@ func (s *BunkrService) runDownload(ctx context.Context, album *Album, outputFold
 		appLog("info", "download", "download worker finished")
 	}()
 
-	albumDir := filepath.Join(outputFolder, sanitizePathName(album.Title))
-	if err := os.MkdirAll(albumDir, 0o755); err != nil {
-		appLog("error", "download", "creating album folder: %v", err)
+	settings := s.GetSettings()
+	destRoot := outputFolder
+	if settings.CreateAlbumSubfolder {
+		destRoot = filepath.Join(outputFolder, sanitizePathName(album.Title))
+	}
+	if err := os.MkdirAll(destRoot, 0o755); err != nil {
+		appLog("error", "download", "creating download folder: %v", err)
 		s.emitDownloadProgress(DownloadProgress{
 			Running: false,
-			Error:   fmt.Sprintf("creating album folder: %v", err),
+			Error:   fmt.Sprintf("creating download folder: %v", err),
 		})
 		return
 	}
 
-	total := len(files)
-	completed := 0
-	cancelled := false
+	tracker := newProgressTracker(len(files), sumFileBytes(files))
+	s.emitProgress(tracker.snapshot(true, false, ""))
 
-	s.emitDownloadProgress(DownloadProgress{
-		Running:        true,
-		CompletedCount: 0,
-		TotalCount:     total,
-	})
-
+	jobs := make(chan downloadJob, len(files))
 	for _, file := range files {
-		select {
-		case <-ctx.Done():
-			cancelled = true
-			s.emitDownloadProgress(DownloadProgress{
-				Running:        false,
-				Cancelled:      true,
-				CompletedCount: completed,
-				TotalCount:     total,
-			})
-			return
-		default:
+		jobs <- downloadJob{
+			file:     file,
+			index:    fileAlbumIndex(album.Files, file),
+			destPath: downloadDestPath(outputFolder, album.Title, file, settings.CreateAlbumSubfolder),
 		}
+	}
+	close(jobs)
 
-		destPath := downloadDestPath(outputFolder, album.Title, file)
-		fileIndex := fileAlbumIndex(album.Files, file)
-
-		if _, err := os.Stat(destPath); err == nil {
-			completed++
-			s.emitDownloadProgress(DownloadProgress{
-				Running:        true,
-				CurrentName:    file.Name,
-				CurrentIndex:   fileIndex,
-				CurrentBytes:   file.SizeBytes,
-				CurrentTotal:   file.SizeBytes,
-				CompletedCount: completed,
-				TotalCount:     total,
-				FileStatus:     "skipped",
-			})
-			continue
-		}
-
-		s.emitDownloadProgress(DownloadProgress{
-			Running:        true,
-			CurrentName:    file.Name,
-			CurrentIndex:   fileIndex,
-			CurrentBytes:   0,
-			CurrentTotal:   file.SizeBytes,
-			CompletedCount: completed,
-			TotalCount:     total,
-			FileStatus:     "resolving",
-		})
-
-		if err := s.downloadGate.Wait(ctx); err != nil {
-			cancelled = true
-			s.emitDownloadProgress(DownloadProgress{
-				Running:        false,
-				Cancelled:      true,
-				CompletedCount: completed,
-				TotalCount:     total,
-			})
-			return
-		}
-
-		s.emitDownloadProgress(DownloadProgress{
-			Running:        true,
-			CurrentName:    file.Name,
-			CurrentIndex:   fileIndex,
-			CurrentBytes:   0,
-			CurrentTotal:   file.SizeBytes,
-			CompletedCount: completed,
-			TotalCount:     total,
-			FileStatus:     "downloading",
-		})
-
-		err := s.downloadFile(ctx, file, destPath, func(bytesDone, bytesTotal int64) {
-			s.emitDownloadProgress(DownloadProgress{
-				Running:        true,
-				CurrentName:    file.Name,
-				CurrentIndex:   fileIndex,
-				CurrentBytes:   bytesDone,
-				CurrentTotal:   bytesTotal,
-				CompletedCount: completed,
-				TotalCount:     total,
-				FileStatus:     "downloading",
-			})
-		})
-
-		if err != nil {
-			if ctx.Err() != nil {
-				cancelled = true
-				break
-			}
-			appLog("error", "download", "failed for %q: %v", file.Name, err)
-			s.emitDownloadProgress(DownloadProgress{
-				Running:        false,
-				Cancelled:      true,
-				CurrentName:    file.Name,
-				CurrentIndex:   fileIndex,
-				CompletedCount: completed,
-				TotalCount:     total,
-				FileStatus:     "failed",
-				Error:          fmt.Sprintf("download failed for %s: %v", file.Name, err),
-			})
-			return
-		}
-
-		completed++
-		s.emitDownloadProgress(DownloadProgress{
-			Running:        true,
-			CurrentName:    file.Name,
-			CurrentIndex:   fileIndex,
-			CurrentBytes:   file.SizeBytes,
-			CurrentTotal:   file.SizeBytes,
-			CompletedCount: completed,
-			TotalCount:     total,
-			FileStatus:     "done",
-		})
+	workers := settings.ParallelDownloads
+	if workers < 1 {
+		workers = 1
 	}
 
-	s.emitDownloadProgress(DownloadProgress{
-		Running:        false,
-		Cancelled:      cancelled,
-		CompletedCount: completed,
-		TotalCount:     total,
-	})
+	var wg sync.WaitGroup
+	var failOnce sync.Once
+	var firstErr error
+
+	emit := func(running bool, cancelled bool, errMsg string) {
+		s.emitProgress(tracker.snapshot(running, cancelled, errMsg))
+	}
+
+	worker := func() {
+		defer wg.Done()
+		for job := range jobs {
+			if ctx.Err() != nil {
+				return
+			}
+
+			if settings.SkipExistingFiles {
+				if _, err := os.Stat(job.destPath); err == nil {
+					tracker.markSkipped(job.file, job.index)
+					emit(true, false, "")
+					continue
+				}
+			}
+
+			tracker.setPhase(job.file.Name, job.index, job.file.SizeBytes, "resolving")
+			emit(true, false, "")
+
+			if err := s.downloadGate.Wait(ctx); err != nil {
+				return
+			}
+
+			tracker.setPhase(job.file.Name, job.index, job.file.SizeBytes, "downloading")
+			emit(true, false, "")
+
+			err := s.downloadFile(ctx, job.file, job.destPath, func(bytesDone, bytesTotal int64) {
+				tracker.updateActive(job.file, job.index, bytesDone, bytesTotal, "downloading")
+				emit(true, false, "")
+			})
+			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				appLog("error", "download", "failed for %q: %v", job.file.Name, err)
+				if settings.ContinueOnFileFailure {
+					tracker.setPhase(job.file.Name, job.index, job.file.SizeBytes, "failed")
+					emit(true, false, "")
+					continue
+				}
+				failOnce.Do(func() {
+					firstErr = fmt.Errorf("download failed for %s: %w", job.file.Name, err)
+					s.CancelDownload()
+				})
+				return
+			}
+
+			tracker.markDone(job.file, job.index)
+			emit(true, false, "")
+		}
+	}
+
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go worker()
+	}
+	wg.Wait()
+
+	if ctx.Err() != nil {
+		emit(false, true, "")
+		return
+	}
+
+	if firstErr != nil {
+		emit(false, true, firstErr.Error())
+		return
+	}
+
+	emit(false, false, "")
+
+	if settings.OpenOutputFolderOnComplete {
+		if err := openPath(destRoot); err != nil {
+			appLog("warn", "download", "opening output folder: %v", err)
+		}
+	}
+}
+
+type downloadJob struct {
+	file     AlbumFile
+	index    int
+	destPath string
+}
+
+func (s *BunkrService) emitProgress(progress DownloadProgress) {
+	s.emitDownloadProgress(progress)
 }
 
 func (s *BunkrService) downloadFile(ctx context.Context, file AlbumFile, destPath string, onProgress func(int64, int64)) error {

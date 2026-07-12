@@ -9,8 +9,6 @@ import (
 	"strings"
 )
 
-const maxAlbumHistory = 1000
-
 type AlbumHistoryEntry struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
@@ -84,7 +82,7 @@ func extractAlbumID(albumURL string) string {
 	return strings.TrimPrefix(path, "/a/")
 }
 
-func recordAlbumHistory(albumURL, title string) error {
+func recordAlbumHistory(albumURL, title string, maxEntries int) error {
 	id := extractAlbumID(albumURL)
 	if id == "" {
 		return nil
@@ -111,8 +109,11 @@ func recordAlbumHistory(albumURL, title string) error {
 		}
 	}
 	history = append([]AlbumHistoryEntry{entry}, filtered...)
-	if len(history) > maxAlbumHistory {
-		history = history[:maxAlbumHistory]
+	if maxEntries <= 0 {
+		maxEntries = defaultMaxAlbumHistory
+	}
+	if len(history) > maxEntries {
+		history = history[:maxEntries]
 	}
 	return saveAlbumHistory(history)
 }

@@ -17,12 +17,21 @@ fi
 
 ./scripts/sync-embed-assets.sh
 
-if command -v wails3 >/dev/null 2>&1; then
-  ./scripts/generate-platform-icons.sh
-  if [[ "$GOOS" == "windows" ]]; then
+case "$GOOS" in
+  windows)
+    if ! command -v wails3 >/dev/null 2>&1; then
+      echo "Windows releases require wails3 to embed the application icon." >&2
+      exit 1
+    fi
     ./scripts/generate-platform-icons.sh --windows-syso
-  fi
-fi
+    ;;
+  darwin)
+    if [[ ! -f build/darwin/icons.icns ]]; then
+      echo "macOS releases require build/darwin/icons.icns." >&2
+      exit 1
+    fi
+    ;;
+esac
 
 mkdir -p "$(dirname "$OUTPUT")"
 

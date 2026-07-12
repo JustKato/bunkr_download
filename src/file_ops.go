@@ -41,6 +41,7 @@ func (s *BunkrService) GetDownloadedFileIndices() ([]int, error) {
 	s.mu.RLock()
 	album := s.activeAlbum
 	outputFolder := s.outputFolder
+	settings := s.settings
 	s.mu.RUnlock()
 
 	if album == nil || outputFolder == "" {
@@ -52,7 +53,7 @@ func (s *BunkrService) GetDownloadedFileIndices() ([]int, error) {
 
 	indices := make([]int, 0)
 	for i, file := range album.Files {
-		destPath := downloadDestPath(outputFolder, album.Title, file)
+		destPath := downloadDestPath(outputFolder, album.Title, file, settings.CreateAlbumSubfolder)
 		if _, err := os.Stat(destPath); err == nil {
 			indices = append(indices, i)
 		}
@@ -81,9 +82,10 @@ func (s *BunkrService) GetFileDetails(index int) (*FileDetails, error) {
 
 	s.mu.RLock()
 	outputFolder := s.outputFolder
+	settings := s.settings
 	s.mu.RUnlock()
 	if outputFolder != "" {
-		destPath := downloadDestPath(outputFolder, album.Title, file)
+		destPath := downloadDestPath(outputFolder, album.Title, file, settings.CreateAlbumSubfolder)
 		if _, err := os.Stat(destPath); err == nil {
 			details.OnDisk = true
 			details.DiskPath = destPath

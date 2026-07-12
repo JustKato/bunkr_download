@@ -35,6 +35,7 @@
         <div class="menu-dropdown" id="settings-menu" hidden>
           <button type="button" data-action="focus-sidebar">Focus Download Panel</button>
           <button type="button" data-action="reset-filters">Reset Filters</button>
+          <button type="button" data-action="open-options">Options</button>
         </div>
       </div>
       <div class="menu-root">
@@ -131,6 +132,7 @@
           <div class="progress-track"><div id="current-progress" class="progress-fill"></div></div>
           <p id="overall-label" class="progress-label">OVERALL: 0 / 0</p>
           <div class="progress-track"><div id="overall-progress" class="progress-fill"></div></div>
+          <p id="eta-label" class="progress-label progress-label-dim">EST. TIME LEFT: --</p>
         </section>
       </aside>
 
@@ -181,5 +183,103 @@
   </div>
 
   <script type="module" src="src/main.js"></script>
+
+  <div id="options-modal" class="modal-overlay" hidden>
+    <div class="modal-panel modal-panel-wide options-modal" role="dialog" aria-modal="true" aria-labelledby="options-modal-title">
+      <header class="modal-header" id="options-modal-title">OPTIONS</header>
+      <div class="modal-body options-body">
+        <p id="options-status" class="options-status" aria-live="polite"></p>
+
+        <section class="options-section">
+          <label class="option-field">
+            <span class="option-label-row">
+              <span class="option-label">Open output folder when complete</span>
+            </span>
+            <input id="opt-open-folder-on-complete" type="checkbox" class="retro-check-input" />
+            <span class="option-help">After a successful album download, open the destination folder automatically.</span>
+          </label>
+
+          <label class="option-field">
+            <span class="option-label-row">
+              <span class="option-label">Files per page</span>
+            </span>
+            <input id="opt-page-size" class="sidebar-input option-input" type="number" min="10" max="100" step="1" />
+            <span class="option-help">How many album files appear on each page when pagination is enabled.</span>
+          </label>
+
+          <label class="option-field">
+            <span class="option-label-row">
+              <span class="option-label">Album history limit</span>
+            </span>
+            <input id="opt-max-history" class="sidebar-input option-input" type="number" min="50" max="5000" step="1" />
+            <span class="option-help">Maximum number of recently opened albums kept in history menus.</span>
+          </label>
+        </section>
+
+        <button id="options-advanced-toggle" class="sidebar-btn options-advanced-toggle" type="button" aria-expanded="false">
+          Show Advanced Options
+        </button>
+
+        <section id="options-advanced-panel" class="options-section options-advanced" hidden>
+          <label class="option-field">
+            <span class="option-label-row">
+              <span class="option-label">Create album subfolder</span>
+            </span>
+            <input id="opt-create-subfolder" type="checkbox" class="retro-check-input" />
+            <span class="option-help">Save each album inside its own folder under the output directory.</span>
+          </label>
+
+          <label class="option-field">
+            <span class="option-label-row">
+              <span class="option-label">Skip existing files</span>
+            </span>
+            <input id="opt-skip-existing" type="checkbox" class="retro-check-input" />
+            <span class="option-help">Leave files that already exist on disk untouched instead of downloading them again.</span>
+          </label>
+
+          <label class="option-field">
+            <span class="option-label-row">
+              <span class="option-label">Continue after a file fails</span>
+              <span class="option-tooltip" tabindex="0" aria-label="Continue after a file fails help">
+                <span class="option-tooltip-mark" aria-hidden="true">?</span>
+                <span class="option-tooltip-bubble">When enabled, one failed file will not stop the rest of the album download. Failed files are reported in the status bar and console.</span>
+              </span>
+            </span>
+            <input id="opt-continue-on-failure" type="checkbox" class="retro-check-input" />
+            <span class="option-help">Keep downloading remaining files even if one file fails.</span>
+          </label>
+
+          <label class="option-field">
+            <span class="option-label-row">
+              <span class="option-label">Retry attempts</span>
+              <span class="option-tooltip" tabindex="0" aria-label="Retry attempts help">
+                <span class="option-tooltip-mark" aria-hidden="true">?</span>
+                <span class="option-tooltip-bubble">How many times Bunkr requests are retried after network errors or temporary HTTP failures such as 429 and 5xx responses. Range: 0-10. Default: 5.</span>
+              </span>
+            </span>
+            <input id="opt-max-retries" class="sidebar-input option-input" type="number" min="0" max="10" step="1" />
+            <span class="option-help">Number of automatic retries for failed HTTP requests.</span>
+          </label>
+
+          <label class="option-field">
+            <span class="option-label-row">
+              <span class="option-label">Parallel downloads</span>
+              <span class="option-tooltip" tabindex="0" aria-label="Parallel downloads help">
+                <span class="option-tooltip-mark" aria-hidden="true">?</span>
+                <span class="option-tooltip-bubble">How many files may download at the same time. Higher values can be faster but increase the chance of rate limits or server throttling. Range: 1-8. Default: 1.</span>
+              </span>
+            </span>
+            <input id="opt-parallel-downloads" class="sidebar-input option-input" type="number" min="1" max="8" step="1" />
+            <span class="option-help">Number of simultaneous file downloads during an album download.</span>
+          </label>
+        </section>
+      </div>
+      <footer class="modal-actions options-actions">
+        <button id="options-cancel-btn" class="sidebar-btn" type="button">Cancel</button>
+        <button id="options-close-btn" class="sidebar-btn" type="button">Close</button>
+        <button id="options-save-btn" class="sidebar-btn primary" type="button">Save</button>
+      </footer>
+    </div>
+  </div>
 </body>
 </html>

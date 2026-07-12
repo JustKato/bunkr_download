@@ -233,6 +233,62 @@ export class AppSettings {
              */
             this["viewMode"] = "";
         }
+        if (!("openOutputFolderOnComplete" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["openOutputFolderOnComplete"] = false;
+        }
+        if (!("pageSize" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["pageSize"] = 0;
+        }
+        if (!("maxAlbumHistory" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["maxAlbumHistory"] = 0;
+        }
+        if (!("skipExistingFiles" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["skipExistingFiles"] = false;
+        }
+        if (!("createAlbumSubfolder" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["createAlbumSubfolder"] = false;
+        }
+        if (!("continueOnFileFailure" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["continueOnFileFailure"] = false;
+        }
+        if (!("maxHttpRetries" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["maxHttpRetries"] = 0;
+        }
+        if (!("parallelDownloads" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["parallelDownloads"] = 0;
+        }
 
         Object.assign(this, $$source);
     }
@@ -405,6 +461,27 @@ export class DownloadProgress {
              * @type {number}
              */
             this["totalCount"] = 0;
+        }
+        if (!("totalBytes" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["totalBytes"] = 0;
+        }
+        if (!("completedBytes" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["completedBytes"] = 0;
+        }
+        if (!("startedAtMs" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["startedAtMs"] = 0;
         }
         if (!("fileStatus" in $$source)) {
             /**

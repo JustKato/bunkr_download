@@ -23,6 +23,7 @@ import { initContextMenu } from "./context-menu.js";
 import { initHistoryPicker } from "./history-picker.js";
 import { installLogger, log } from "./logger.js";
 import { initMenu } from "./menu.js";
+import { initOptionsModal, openOptionsModal } from "./options-modal.js";
 
 installLogger();
 
@@ -59,6 +60,7 @@ const filterFile = document.getElementById("filter-file");
 const includePatterns = document.getElementById("include-patterns");
 const currentFileLabel = document.getElementById("current-file-label");
 const overallLabel = document.getElementById("overall-label");
+const etaLabel = document.getElementById("eta-label");
 const currentProgress = document.getElementById("current-progress");
 const overallProgress = document.getElementById("overall-progress");
 const statusbar = document.getElementById("statusbar");
@@ -73,7 +75,13 @@ let currentPage = 1;
 let infiniteRenderedCount = 0;
 let infiniteObserver = null;
 
-const PAGE_SIZE = 25;
+let pageSize = 25;
+let etaState = {
+  startedAt: 0,
+  lastBytes: 0,
+  lastAt: 0,
+  smoothedBps: 0,
+};
 
 const viewSettings = {
   paginationMode: "pagination",
@@ -279,6 +287,7 @@ function applySettingsToUI(settings) {
   viewSettings.viewMode = settings.viewMode === "gallery" ? "gallery" : "list";
   applyViewModeClasses();
   updateViewMenuChecks();
+  applyProgramSettings(settings);
 }
 
 function applyViewModeClasses() {
@@ -327,8 +336,94 @@ function setViewMode(mode) {
   }
 }
 
+function getPageSize() {
+  return pageSize > 0 ? pageSize : 25;
+}
+
+function resetEtaState() {
+  etaState = {
+    startedAt: 0,
+    lastBytes: 0,
+    lastAt: 0,
+    smoothedBps: 0,
+  };
+}
+
+function formatDuration(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return "--";
+  }
+  if (seconds < 1) {
+    return "<1s";
+  }
+  const total = Math.round(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  if (hours > 0) {
+    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+  }
+  if (minutes > 0) {
+    return secs > 0 ? `${minutes}m ${secs}s` : `${minutes}m`;
+  }
+  return `${secs}s`;
+}
+
+function updateEtaLabel(progress) {
+  if (!etaLabel) {
+    return;
+  }
+  if (!progress?.running) {
+    etaLabel.textContent = "EST. TIME LEFT: --";
+    return;
+  }
+
+  const completedBytes = progress.completedBytes || 0;
+  const totalBytes = progress.totalBytes || 0;
+  if (totalBytes <= 0 || completedBytes <= 0) {
+    etaLabel.textContent = "EST. TIME LEFT: calculating...";
+    return;
+  }
+
+  const now = Date.now();
+  if (!etaState.startedAt) {
+    etaState.startedAt = progress.startedAtMs || now;
+    etaState.lastAt = now;
+    etaState.lastBytes = completedBytes;
+  }
+
+  const elapsedSec = Math.max(0.001, (now - etaState.startedAt) / 1000);
+  const deltaT = (now - etaState.lastAt) / 1000;
+  if (deltaT > 0 && completedBytes >= etaState.lastBytes) {
+    const instant = (completedBytes - etaState.lastBytes) / deltaT;
+    if (instant > 0) {
+      etaState.smoothedBps =
+        etaState.smoothedBps > 0 ? etaState.smoothedBps * 0.7 + instant * 0.3 : instant;
+    }
+    etaState.lastBytes = completedBytes;
+    etaState.lastAt = now;
+  }
+
+  const rate = etaState.smoothedBps > 0 ? etaState.smoothedBps : completedBytes / elapsedSec;
+  if (rate <= 0 || completedBytes >= totalBytes) {
+    etaLabel.textContent = "EST. TIME LEFT: calculating...";
+    return;
+  }
+
+  const remaining = (totalBytes - completedBytes) / rate;
+  etaLabel.textContent = `EST. TIME LEFT: ${formatDuration(remaining)}`;
+}
+
+function applyProgramSettings(settings) {
+  pageSize = settings?.pageSize > 0 ? settings.pageSize : 25;
+  if (currentAlbum) {
+    currentPage = Math.min(currentPage, getTotalPages(currentAlbum.files.length));
+    renderVisibleFiles();
+  }
+}
+
 function getTotalPages(totalFiles = currentAlbum?.files?.length || 0) {
-  return Math.max(1, Math.ceil(totalFiles / PAGE_SIZE));
+  return Math.max(1, Math.ceil(totalFiles / getPageSize()));
 }
 
 function teardownInfiniteScroll() {
@@ -374,7 +469,7 @@ function updatePaginationControls() {
   const totalPages = getTotalPages(total);
   currentPage = Math.min(Math.max(currentPage, 1), totalPages);
 
-  paginationBar.hidden = total <= PAGE_SIZE;
+  paginationBar.hidden = total <= getPageSize();
   if (pageInfo) {
     pageInfo.textContent = `Page ${currentPage} / ${totalPages}`;
   }
@@ -421,7 +516,7 @@ function loadMoreInfiniteItems() {
   }
 
   const start = infiniteRenderedCount;
-  const end = Math.min(start + PAGE_SIZE, total);
+  const end = Math.min(start + getPageSize(), total);
   appendFileItems(start, end);
   infiniteRenderedCount = end;
 
@@ -452,8 +547,8 @@ function renderVisibleFiles() {
     return;
   }
 
-  const start = (currentPage - 1) * PAGE_SIZE;
-  const end = Math.min(start + PAGE_SIZE, currentAlbum.files.length);
+  const start = (currentPage - 1) * getPageSize();
+  const end = Math.min(start + getPageSize(), currentAlbum.files.length);
   appendFileItems(start, end);
   updatePaginationControls();
   panelBody?.scrollTo({ top: 0, behavior: "auto" });
@@ -493,6 +588,10 @@ function updateDownloadControls() {
 function resetProgressUI(total = 0) {
   currentFileLabel.textContent = "CURRENT: -";
   overallLabel.textContent = `OVERALL: 0 / ${total}`;
+  if (etaLabel) {
+    etaLabel.textContent = "EST. TIME LEFT: --";
+  }
+  resetEtaState();
   currentProgress.style.width = "0%";
   overallProgress.style.width = "0%";
 }
@@ -562,6 +661,7 @@ async function startDownload() {
 
   log.info("download", "Download Album clicked");
   resetProgressUI(0);
+  resetEtaState();
   rowStatus.clear();
   fileList.querySelectorAll(".file-status").forEach((badge) => {
     badge.hidden = true;
@@ -595,6 +695,8 @@ function updateProgressUI(progress) {
   const total = progress.totalCount || 0;
   const currentTotal = progress.currentTotal || 0;
   const currentBytes = progress.currentBytes || 0;
+  const totalBytes = progress.totalBytes || 0;
+  const completedBytes = progress.completedBytes || 0;
 
   currentFileLabel.textContent = progress.currentName
     ? `CURRENT: ${progress.currentName}`
@@ -606,9 +708,16 @@ function updateProgressUI(progress) {
     currentTotal > 0 ? Math.min(100, (currentBytes / currentTotal) * 100) : 0;
   currentProgress.style.width = `${currentPct}%`;
 
-  const overallFraction =
-    total > 0 ? (completed + (currentTotal > 0 ? currentBytes / currentTotal : 0)) / total : 0;
-  overallProgress.style.width = `${Math.min(100, overallFraction * 100)}%`;
+  let overallPct = 0;
+  if (totalBytes > 0) {
+    overallPct = Math.min(100, (completedBytes / totalBytes) * 100);
+  } else {
+    const overallFraction =
+      total > 0 ? (completed + (currentTotal > 0 ? currentBytes / currentTotal : 0)) / total : 0;
+    overallPct = Math.min(100, overallFraction * 100);
+  }
+  overallProgress.style.width = `${overallPct}%`;
+  updateEtaLabel(progress);
 
   if (progress.currentIndex >= 0 && progress.fileStatus) {
     const normalized = progress.fileStatus.toUpperCase();
@@ -970,6 +1079,13 @@ const menuControls = initMenu({
     }),
   "focus-sidebar": () => sidebar.focus({ preventScroll: false }),
   "reset-filters": () => resetFilters(),
+  "open-options": () =>
+    openOptionsModal({
+      applySettings: (settings) => {
+        applyProgramSettings(settings);
+        setStatus("Options saved");
+      },
+    }),
   "pagination-mode-pages": () => setPaginationMode("pagination"),
   "pagination-mode-infinite": () => setPaginationMode("infinite-scroll"),
   "view-mode-list": () => setViewMode("list"),
@@ -1039,6 +1155,7 @@ Events.On("download:progress", (event) => {
 });
 
 loadSettings();
+initOptionsModal();
 refreshAlbumHistory();
 updateDownloadControls();
 input.focus();

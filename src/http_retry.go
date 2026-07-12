@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	maxHTTPRetries = 5
-	retryBaseDelay = 2 * time.Second
-	maxRetryDelay  = 45 * time.Second
+	defaultHTTPRetries = 5
+	retryBaseDelay     = 2 * time.Second
+	maxRetryDelay      = 45 * time.Second
 )
 
 func isRetryableHTTPStatus(code int) bool {
@@ -63,7 +63,8 @@ func (s *BunkrService) doRequestWithRetry(
 	}
 	var lastErr error
 
-	for attempt := 0; attempt <= maxHTTPRetries; attempt++ {
+	maxRetries := s.maxHTTPRetries()
+	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if err := gate.Wait(ctx); err != nil {
 			return nil, err
 		}
@@ -77,7 +78,7 @@ func (s *BunkrService) doRequestWithRetry(
 		response, err := client.Do(req)
 		if err != nil {
 			lastErr = err
-			if attempt == maxHTTPRetries || ctx.Err() != nil {
+			if attempt == maxRetries || ctx.Err() != nil {
 				return nil, err
 			}
 			if err := sleepWithContext(ctx, retryDelay(attempt, 0)); err != nil {
@@ -86,7 +87,7 @@ func (s *BunkrService) doRequestWithRetry(
 			continue
 		}
 
-		if !isRetryableHTTPStatus(response.StatusCode) || attempt == maxHTTPRetries {
+		if !isRetryableHTTPStatus(response.StatusCode) || attempt == maxRetries {
 			return response, nil
 		}
 

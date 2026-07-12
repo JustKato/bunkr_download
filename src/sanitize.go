@@ -113,6 +113,10 @@ func collapseUnderscores(value string) string {
 	return strings.Trim(b.String(), "_")
 }
 
-func downloadDestPath(outputFolder, albumTitle string, file AlbumFile) string {
-	return filepath.Join(outputFolder, sanitizePathName(albumTitle), sanitizeFileName(file.Name))
+func downloadDestPath(outputFolder, albumTitle string, file AlbumFile, createAlbumSubfolder bool) string {
+	fileName := sanitizeFileName(file.Name)
+	if createAlbumSubfolder {
+		return filepath.Join(outputFolder, sanitizePathName(albumTitle), fileName)
+	}
+	return filepath.Join(outputFolder, fileName)
 }
