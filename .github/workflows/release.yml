@@ -15,7 +15,7 @@ jobs:
       matrix:
         include:
           - id: linux-amd64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
             goos: linux
             goarch: amd64
             artifact: bunkrdownload-linux-amd64
@@ -55,13 +55,10 @@ jobs:
             pkg-config \
             libgtk-4-dev \
             libwebkitgtk-6.0-dev \
-            libglib2.0-dev
-
-      - name: Install Wails CLI
-        shell: bash
-        run: |
-          go install github.com/wailsapp/wails/v3/cmd/wails3@latest
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+            libglib2.0-dev \
+            libwayland-dev
+          pkg-config --modversion gtk4
+          pkg-config --modversion webkitgtk-6.0
 
       - name: Build binary
         shell: bash

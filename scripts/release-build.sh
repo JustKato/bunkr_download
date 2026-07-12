@@ -11,13 +11,11 @@ cd "$ROOT"
 
 ./scripts/sync-embed-assets.sh
 
-export PATH="$(go env GOPATH)/bin:${PATH:-}"
-if ! command -v wails3 >/dev/null 2>&1; then
-  echo "wails3 CLI not found in PATH" >&2
-  exit 1
+if command -v wails3 >/dev/null 2>&1; then
+  wails3 generate bindings -clean=true -b
+else
+  echo "wails3 not installed; using committed frontend bindings"
 fi
-
-wails3 generate bindings -clean=true -b
 
 mkdir -p "$(dirname "$OUTPUT")"
 
