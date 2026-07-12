@@ -1,8 +1,44 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "go_bunkrdownload",
+  "name": "bunkrdownload",
   "outputfilename": "bunkrdownload",
+  "build:dir": "build",
+  "frontend:dir": "frontend",
+  "wailsjsdir": "frontend/bindings",
+  "assetdir": "",
+  "frontend:install": "",
+  "frontend:build": "",
+  "frontend:dev": "",
+  "frontend:dev:build": "",
+  "frontend:dev:install": "",
+  "frontend:dev:watcher": "",
+  "frontend:dev:serverUrl": "",
+  "debounceMS": 1000,
+  "devServer": "localhost:34115",
+  "build:tags": "",
+  "obfuscated": false,
+  "garbleargs": "",
+  "nsisType": "multiple",
   "author": {
-    "name": "daniel"
-  }
+    "name": "daniel",
+    "email": "contact@danlegt.com"
+  },
+  "info": {
+    "companyName": "danlegt",
+    "productName": "Bunkr Downloader",
+    "productIdentifier": "com.danlegt.bunkrdownload",
+    "description": "Bunkr album downloader",
+    "copyright": "(c) 2026 danlegt",
+    "comments": "Desktop client for browsing and downloading Bunkr albums",
+    "version": "0.1.0"
+  },
+  "protocols": [
+    {
+      "scheme": "bunkrdownload",
+      "description": "Open Source Bunkr Downloader with an album or file path"
+    }
+  ],
+  "fileAssociations": [],
+  "preBuildHooks": {},
+  "postBuildHooks": {}
 }

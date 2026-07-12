@@ -1,6 +1,5 @@
 # Wails build output
 build/bin/
-build/appicon.png
 *.exe
 *.app
 
