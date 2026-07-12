@@ -31,6 +31,22 @@
     </footer>
   </div>
 
+  <div id="file-info-modal" class="modal-overlay" hidden>
+    <div class="modal-panel modal-panel-wide">
+      <div class="modal-header">FILE INFO</div>
+      <div class="modal-body" id="file-info-body"></div>
+      <div class="modal-actions">
+        <button id="file-info-close-btn" class="sidebar-btn primary" type="button">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="file-context-menu" class="context-menu" hidden>
+    <button type="button" data-action="open">Open</button>
+    <button type="button" data-action="download">Download</button>
+    <button type="button" data-action="about">About</button>
+  </div>
+
   <script type="module" src="src/preview.js"></script>
 </body>
 </html>

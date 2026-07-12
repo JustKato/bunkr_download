@@ -2,7 +2,10 @@ import { Events } from "/wails/runtime.js";
 import {
   CancelDownload,
   ChooseOutputFolder,
+  DownloadFileAtIndex,
   GetDownloadProgress,
+  GetDownloadedFileIndices,
+  GetFileDetails,
   GetSettings,
   OpenOutputFolder,
   OpenPreview,
@@ -12,11 +15,11 @@ import {
   SetOutputFolder,
   StartDownload,
 } from "../bindings/github.com/justkato/bunkr_download/bunkrservice.js";
+import { initContextMenu, renderFileInfoBody } from "./context-menu.js";
 import { initMenu } from "./menu.js";
 
 const input = document.getElementById("url-input");
 const goBtn = document.getElementById("go-btn");
-const emptyState = document.getElementById("empty-state");
 const statusText = document.getElementById("status-text");
 const panelTitle = document.getElementById("panel-title");
 const albumSummary = document.getElementById("album-summary");
@@ -40,15 +43,72 @@ const currentProgress = document.getElementById("current-progress");
 const overallProgress = document.getElementById("overall-progress");
 const aboutModal = document.getElementById("about-modal");
 const aboutCloseBtn = document.getElementById("about-close-btn");
+const statusbar = document.getElementById("statusbar");
+const fileInfoModal = document.getElementById("file-info-modal");
+const fileInfoBody = document.getElementById("file-info-body");
+const fileInfoCloseBtn = document.getElementById("file-info-close-btn");
+const fileContextMenu = document.getElementById("file-context-menu");
 
 let currentAlbum = null;
 let downloadRunning = false;
 const rowStatus = new Map();
 let saveSettingsTimer = null;
 
+function getEmptyState() {
+  return document.getElementById("empty-state");
+}
+
+function ensureEmptyState() {
+  let state = getEmptyState();
+  if (state) {
+    return state;
+  }
+
+  const panelBody = document.querySelector(".main-panel .panel-body");
+  state = document.createElement("div");
+  state.id = "empty-state";
+  state.className = "empty-state";
+  panelBody.prepend(state);
+  return state;
+}
+
+function showEmptyStateDefault() {
+  albumSummary.hidden = true;
+  fileList.replaceChildren();
+  const state = ensureEmptyState();
+  state.className = "empty-state";
+  state.hidden = false;
+  state.innerHTML = `
+    <p class="empty-title">NO ARCHIVE LOADED</p>
+    <p class="empty-hint">Enter a Bunkr album URL above and press FETCH.</p>
+    <p class="empty-note">Click a file to preview it.</p>
+  `;
+}
+
+function setEmptyStateLoading(message, hint = "Large albums can take a little while.") {
+  albumSummary.hidden = true;
+  fileList.replaceChildren();
+  const state = ensureEmptyState();
+  state.className = "empty-state empty-state-loading";
+  state.hidden = false;
+  state.innerHTML = `
+    <p class="empty-title">${message}</p>
+    <div class="empty-spinner" aria-hidden="true"></div>
+    <p class="empty-hint">${hint}</p>
+  `;
+}
+
+function hideEmptyState() {
+  const state = getEmptyState();
+  if (state) {
+    state.remove();
+  }
+}
+
 function setStatus(msg, isError = false) {
   statusText.textContent = msg;
   statusText.classList.toggle("error", isError);
+  statusbar?.classList.toggle("error", isError);
 }
 
 function setLoading(isLoading) {
@@ -256,7 +316,12 @@ function updateProgressUI(progress) {
   overallProgress.style.width = `${Math.min(100, overallFraction * 100)}%`;
 
   if (progress.currentIndex >= 0 && progress.fileStatus) {
-    rowStatus.set(progress.currentIndex, progress.fileStatus.toUpperCase());
+    const normalized = progress.fileStatus.toUpperCase();
+    if (normalized === "SKIPPED" || normalized === "DONE") {
+      rowStatus.set(progress.currentIndex, "ON DISK");
+    } else {
+      rowStatus.set(progress.currentIndex, normalized);
+    }
     updateRowBadge(progress.currentIndex);
   }
 }
@@ -269,6 +334,8 @@ function updateRowBadge(index) {
   if (!badge || !status) return;
   badge.textContent = status;
   badge.hidden = false;
+  badge.classList.toggle("on-disk", status === "ON DISK");
+  badge.classList.toggle("failed", status === "FAILED" || status === "CANCELLED");
 }
 
 function handleDownloadProgress(progress) {
@@ -279,18 +346,88 @@ function handleDownloadProgress(progress) {
   updateProgressUI(progress);
 
   if (progress.error) {
-    setStatus(progress.error, true);
-  } else if (progress.running) {
+    if (progress.currentIndex >= 0) {
+      rowStatus.set(progress.currentIndex, progress.cancelled ? "CANCELLED" : "FAILED");
+      updateRowBadge(progress.currentIndex);
+    }
+    setStatus(`Download failed: ${progress.error}`, true);
+    return;
+  }
+
+  if (progress.running) {
     if (progress.currentName) {
       setStatus(`Downloading ${progress.currentName}`);
     }
-  } else if (!progress.running) {
-    if (progress.cancelled) {
-      setStatus("Download cancelled");
-    } else {
-      setStatus(`Done: ${progress.completedCount}/${progress.totalCount}`);
-    }
+    return;
   }
+
+  if (progress.cancelled) {
+    setStatus("Download cancelled", true);
+    return;
+  }
+
+  setStatus(`Done: ${progress.completedCount}/${progress.totalCount}`);
+  markDownloadedFiles().catch(() => {});
+}
+
+async function markDownloadedFiles() {
+  if (!currentAlbum) return;
+  try {
+    const indices = await GetDownloadedFileIndices();
+    for (const index of indices) {
+      rowStatus.set(index, "ON DISK");
+      updateRowBadge(index);
+    }
+  } catch {}
+}
+
+async function openFilePreview(index) {
+  try {
+    await OpenPreview(index);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setStatus(`Preview failed: ${message}`, true);
+  }
+}
+
+async function downloadSingleFile(index) {
+  if (downloadRunning) {
+    setStatus("Another download is already running", true);
+    return;
+  }
+
+  resetProgressUI(1);
+  try {
+    await DownloadFileAtIndex(index);
+    downloadRunning = true;
+    updateDownloadControls();
+    setStatus("Download started");
+
+    try {
+      const snapshot = await GetDownloadProgress();
+      if (snapshot) {
+        handleDownloadProgress(snapshot);
+      }
+    } catch {}
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setStatus(`Download failed: ${message}`, true);
+  }
+}
+
+async function showFileAbout(index) {
+  try {
+    const details = await GetFileDetails(index);
+    renderFileInfoBody(fileInfoBody, details);
+    fileInfoModal.hidden = false;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setStatus(`File info failed: ${message}`, true);
+  }
+}
+
+function hideFileInfo() {
+  fileInfoModal.hidden = true;
 }
 
 function makeFileRow(file, index) {
@@ -355,57 +492,56 @@ function makeFileRow(file, index) {
   row.append(preview, details);
 
   if (previewable) {
-    row.addEventListener("click", async () => {
-      try {
-        await OpenPreview(index);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        setStatus(`Preview failed: ${message}`, true);
-      }
-    });
+    row.addEventListener("click", () => openFilePreview(index));
   } else {
     row.addEventListener("click", () => {
       setStatus("No preview for this file", true);
     });
   }
 
+  row.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    fileMenu?.show(event.clientX, event.clientY, index);
+  });
+
   return row;
 }
 
-function renderAlbum(album) {
+async function renderAlbum(album) {
   currentAlbum = album;
   rowStatus.clear();
-  emptyState?.remove();
+  hideEmptyState();
   albumSummary.hidden = false;
-  fileList.replaceChildren(...album.files.map((file, index) => makeFileRow(file, index)));
+  fileList.replaceChildren();
 
   panelTitle.textContent = `ALBUM FILES (${album.files.length})`;
   albumName.textContent = album.title;
   albumSource.textContent = album.url;
-  albumStats.textContent = `${album.fileCount} FILES  /  ${album.totalSize || "SIZE UNKNOWN"}`;
+  albumStats.textContent = `${album.files.length} FILES  /  ${album.totalSize || "SIZE UNKNOWN"}`;
   updateDownloadControls();
+
+  const batchSize = 40;
+  for (let i = 0; i < album.files.length; i += batchSize) {
+    const fragment = document.createDocumentFragment();
+    const end = Math.min(i + batchSize, album.files.length);
+    for (let j = i; j < end; j++) {
+      fragment.append(makeFileRow(album.files[j], j));
+    }
+    fileList.append(fragment);
+    if (end < album.files.length) {
+      setStatus(`Rendering files... ${end}/${album.files.length}`);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+
+  markDownloadedFiles().catch(() => {});
 }
 
 function resetAlbumView() {
   currentAlbum = null;
   rowStatus.clear();
-  albumSummary.hidden = true;
-  fileList.replaceChildren();
   panelTitle.textContent = "ALBUM FILES";
-
-  if (!document.getElementById("empty-state")) {
-    const panelBody = document.querySelector(".main-panel .panel-body");
-    const state = document.createElement("div");
-    state.id = "empty-state";
-    state.className = "empty-state";
-    state.innerHTML = `
-      <p class="empty-title">NO ARCHIVE LOADED</p>
-      <p class="empty-hint">Enter a Bunkr album URL above and press FETCH.</p>
-      <p class="empty-note">Click a file to preview it.</p>
-    `;
-    panelBody.prepend(state);
-  }
-
+  showEmptyStateDefault();
   updateDownloadControls();
 }
 
@@ -417,14 +553,25 @@ async function onFetch() {
   }
 
   setLoading(true);
-  setStatus("Scraping...");
+  setEmptyStateLoading("FETCHING ALBUM...");
+  setStatus("Scraping album...");
 
   try {
     const album = await ScrapeAlbum(raw);
-    renderAlbum(album);
+    if (!album?.files?.length) {
+      throw new Error("Album returned no files");
+    }
+
+    setEmptyStateLoading(
+      `RENDERING ${album.files.length} FILES...`,
+      "Hang tight. Big albums render in batches so the UI stays responsive.",
+    );
+    setStatus(`Rendering ${album.files.length} files...`);
+    await renderAlbum(album);
     setStatus(`Loaded ${album.files.length} files`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    showEmptyStateDefault();
     setStatus(`Scrape failed: ${message}`, true);
   } finally {
     setLoading(false);
@@ -478,6 +625,18 @@ aboutCloseBtn.addEventListener("click", () => hideAbout());
 aboutModal.addEventListener("click", (event) => {
   if (event.target === aboutModal) hideAbout();
 });
+fileInfoCloseBtn.addEventListener("click", () => hideFileInfo());
+fileInfoModal.addEventListener("click", (event) => {
+  if (event.target === fileInfoModal) hideFileInfo();
+});
+
+const fileMenu = fileContextMenu
+  ? initContextMenu(fileContextMenu, {
+      open: (index) => openFilePreview(index),
+      download: (index) => downloadSingleFile(index),
+      about: (index) => showFileAbout(index),
+    })
+  : null;
 
 outputFolderInput.addEventListener("change", () => saveOutputFolderFromInput());
 outputFolderInput.addEventListener("blur", () => saveOutputFolderFromInput());

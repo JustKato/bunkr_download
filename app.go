@@ -25,19 +25,25 @@ const (
 	bunkrDownloadRef = "https://get.bunkrr.su"
 	bunkrCDNSignAPI  = "https://glb-apisign.cdn.cr/sign"
 	httpUserAgent    = "BunkrDownloader/1.0"
+	preferredBunkrHost = "bunkr.cr"
 )
 
 var (
 	albumSummaryPattern = regexp.MustCompile(`(?i)\(([^)]+)\)\s*(\d+)\s+files?`)
 	albumFileField      = regexp.MustCompile(`(?m)^\s*([a-zA-Z]+):\s*(.+?)\s*,?\s*$`)
 	allowedBunkrHosts   = map[string]struct{}{
-		"bunkr.cr": {},
-		"bunkr.fi": {},
-		"bunkr.is": {},
-		"bunkr.la": {},
-		"bunkr.ps": {},
-		"bunkr.ru": {},
-		"bunkr.si": {},
+		"bunkr.black": {},
+		"bunkr.cr":    {},
+		"bunkr.fi":    {},
+		"bunkr.is":    {},
+		"bunkr.la":    {},
+		"bunkr.ph":    {},
+		"bunkr.ps":    {},
+		"bunkr.ru":    {},
+		"bunkr.se":    {},
+		"bunkr.si":    {},
+		"bunkr.site":  {},
+		"bunkr.su":    {},
 	}
 )
 
@@ -149,7 +155,12 @@ func (s *BunkrService) ScrapeAlbum(raw string) (*Album, error) {
 		return nil, err
 	}
 
-	advancedURL, err := withQueryParam(albumURL, "advanced", "1")
+	fetchURL, err := canonicalBunkrAlbumURL(albumURL)
+	if err != nil {
+		return nil, err
+	}
+
+	advancedURL, err := withQueryParam(fetchURL, "advanced", "1")
 	if err != nil {
 		return nil, err
 	}
@@ -387,7 +398,7 @@ func parseAlbumPage(pageURL *url.URL, htmlContent string) (*Album, error) {
 	album := &Album{}
 
 	if title := extractMetaContent(htmlContent, `property="og:title" content="`); title != "" {
-		album.Title = htmlUnescape(title)
+		album.Title = cleanDisplayName(htmlUnescape(title))
 	}
 	if match := albumSummaryPattern.FindStringSubmatch(htmlContent); len(match) == 3 {
 		album.TotalSize = match[1]
@@ -461,7 +472,7 @@ func parseAlbumFilesJS(pageURL *url.URL, htmlContent string) ([]AlbumFile, error
 		fields := parseJSObjectFields(rawItem)
 		fileID, _ := strconv.ParseInt(strings.TrimSpace(fields["id"]), 10, 64)
 		slug := unquoteJS(fields["slug"])
-		original := unquoteJS(fields["original"])
+		original := cleanDisplayName(unquoteJS(fields["original"]))
 		if original == "" || slug == "" {
 			continue
 		}
@@ -508,7 +519,7 @@ func parseAlbumHTML(pageURL *url.URL, document *html.Node) (*Album, error) {
 	walkElements(document, func(node *html.Node) {
 		switch {
 		case node.Data == "h1" && album.Title == "":
-			album.Title = nodeText(node)
+			album.Title = cleanDisplayName(nodeText(node))
 		case node.Data == "span" && hasClass(node, "font-semibold") && album.FileCount == 0:
 			if match := albumSummaryPattern.FindStringSubmatch(nodeText(node)); len(match) == 3 {
 				album.TotalSize = match[1]
@@ -528,7 +539,7 @@ func parseAlbumHTML(pageURL *url.URL, document *html.Node) (*Album, error) {
 }
 
 func parseAlbumFile(pageURL *url.URL, item *html.Node) AlbumFile {
-	file := AlbumFile{Name: strings.TrimSpace(attribute(item, "title"))}
+	file := AlbumFile{Name: cleanDisplayName(strings.TrimSpace(attribute(item, "title")))}
 
 	walkElements(item, func(node *html.Node) {
 		switch {
@@ -542,7 +553,7 @@ func parseAlbumFile(pageURL *url.URL, item *html.Node) AlbumFile {
 		case node.Data == "p":
 			switch {
 			case hasClass(node, "theName") && file.Name == "":
-				file.Name = nodeText(node)
+				file.Name = cleanDisplayName(nodeText(node))
 			case hasClass(node, "theSize"):
 				file.Size = nodeText(node)
 			}
@@ -704,4 +715,17 @@ func resolveURL(base *url.URL, raw string) string {
 func isBunkrHost(host string) bool {
 	_, allowed := allowedBunkrHosts[strings.ToLower(host)]
 	return allowed
+}
+
+func canonicalBunkrAlbumURL(raw string) (string, error) {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("parsing album URL: %w", err)
+	}
+	if !isBunkrHost(parsed.Hostname()) {
+		return raw, nil
+	}
+	canonical := *parsed
+	canonical.Host = preferredBunkrHost
+	return canonical.String(), nil
 }

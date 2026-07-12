@@ -12,5 +12,6 @@ export {
     AlbumFile,
     AppSettings,
     DownloadOptions,
-    DownloadProgress
+    DownloadProgress,
+    FileDetails
 } from "./models.js";

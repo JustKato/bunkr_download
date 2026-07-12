@@ -1,10 +1,13 @@
 import {
   CacheMediaFile,
+  DownloadFileAtIndex,
   GetActiveAlbum,
+  GetFileDetails,
   GetPreviewIndex,
   ResolveMediaURL,
   SetPreviewIndex,
 } from "../bindings/github.com/justkato/bunkr_download/bunkrservice.js";
+import { initContextMenu, renderFileInfoBody } from "./context-menu.js";
 
 const previewName = document.getElementById("preview-name");
 const previewCounter = document.getElementById("preview-counter");
@@ -18,6 +21,10 @@ const previewNext = document.getElementById("preview-next");
 const previewFlipX = document.getElementById("preview-flip-x");
 const previewFlipY = document.getElementById("preview-flip-y");
 const previewZoom = document.getElementById("preview-zoom");
+const fileInfoModal = document.getElementById("file-info-modal");
+const fileInfoBody = document.getElementById("file-info-body");
+const fileInfoCloseBtn = document.getElementById("file-info-close-btn");
+const fileContextMenu = document.getElementById("file-context-menu");
 
 const state = {
   album: null,
@@ -87,6 +94,79 @@ function maxScale() {
 function clampScale(value) {
   return Math.min(maxScale(), Math.max(minScale(), value));
 }
+
+function currentAlbumIndex() {
+  if (!state.album || state.previewableIndices.length === 0) {
+    return -1;
+  }
+  return state.previewableIndices[state.currentListPos];
+}
+
+function showPreviewMessage(message, isError = false) {
+  previewMessage.hidden = false;
+  previewMessage.textContent = message;
+  previewMessage.classList.toggle("error", isError);
+}
+
+async function showFileAbout(index) {
+  try {
+    const details = await GetFileDetails(index);
+    renderFileInfoBody(fileInfoBody, details);
+    fileInfoModal.hidden = false;
+  } catch (error) {
+    showPreviewMessage(
+      error instanceof Error ? error.message : String(error),
+      true,
+    );
+  }
+}
+
+async function downloadCurrentFile() {
+  const index = currentAlbumIndex();
+  if (index < 0) return;
+  try {
+    await DownloadFileAtIndex(index);
+    showPreviewMessage("Download started");
+  } catch (error) {
+    showPreviewMessage(
+      error instanceof Error ? error.message : String(error),
+      true,
+    );
+  }
+}
+
+const previewFileMenu = initContextMenu(fileContextMenu, {
+  open: () => renderCurrent().catch(console.error),
+  download: () => downloadCurrentFile().catch(console.error),
+  about: () => {
+    const index = currentAlbumIndex();
+    if (index >= 0) {
+      showFileAbout(index).catch(console.error);
+    }
+  },
+});
+
+function bindPreviewContextMenu(target) {
+  target.addEventListener("contextmenu", (event) => {
+    const index = currentAlbumIndex();
+    if (index < 0) return;
+    event.preventDefault();
+    previewFileMenu.show(event.clientX, event.clientY, index);
+  });
+}
+
+bindPreviewContextMenu(previewStage);
+bindPreviewContextMenu(previewViewport);
+bindPreviewContextMenu(previewMediaWrap);
+
+fileInfoCloseBtn?.addEventListener("click", () => {
+  fileInfoModal.hidden = true;
+});
+fileInfoModal?.addEventListener("click", (event) => {
+  if (event.target === fileInfoModal) {
+    fileInfoModal.hidden = true;
+  }
+});
 
 function updateToolbar() {
   previewPrev.disabled = state.currentListPos <= 0;

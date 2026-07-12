@@ -33,6 +33,14 @@ export function ChooseOutputFolder() {
 }
 
 /**
+ * @param {number} index
+ * @returns {$CancellablePromise<void>}
+ */
+export function DownloadFileAtIndex(index) {
+    return $Call.ByID(2824212482, index);
+}
+
+/**
  * @returns {$CancellablePromise<$models.Album | null>}
  */
 export function GetActiveAlbum() {
@@ -47,6 +55,25 @@ export function GetActiveAlbum() {
 export function GetDownloadProgress() {
     return $Call.ByID(4034910168).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType2($result);
+    }));
+}
+
+/**
+ * @returns {$CancellablePromise<number[]>}
+ */
+export function GetDownloadedFileIndices() {
+    return $Call.ByID(3721437933).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
+ * @param {number} index
+ * @returns {$CancellablePromise<$models.FileDetails | null>}
+ */
+export function GetFileDetails(index) {
+    return $Call.ByID(743151101, index).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType5($result);
     }));
 }
 
@@ -69,7 +96,7 @@ export function GetPreviewIndex() {
  */
 export function GetSettings() {
     return $Call.ByID(2857995934).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType6($result);
     }));
 }
 
@@ -157,4 +184,7 @@ export function ValidateURL(raw) {
 const $$createType0 = $models.Album.createFrom;
 const $$createType1 = $Create.Nullable($$createType0);
 const $$createType2 = $models.DownloadProgress.createFrom;
-const $$createType3 = $models.AppSettings.createFrom;
+const $$createType3 = $Create.Array($Create.Any);
+const $$createType4 = $models.FileDetails.createFrom;
+const $$createType5 = $Create.Nullable($$createType4);
+const $$createType6 = $models.AppSettings.createFrom;

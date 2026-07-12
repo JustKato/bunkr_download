@@ -1,6 +1,40 @@
 package main
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
+
+func TestCleanDisplayNameStripsWeirdRunes(t *testing.T) {
+	got := cleanDisplayName("Photo\u0080\u0099s.jpg")
+	if got != "Photos.jpg" {
+		t.Fatalf("unexpected cleaned name: %q", got)
+	}
+}
+
+func TestSanitizePathName(t *testing.T) {
+	if got := sanitizePathName(`Album: Test / Part 1`); got != "Album_Test_Part_1" {
+		t.Fatalf("unexpected sanitized path: %q", got)
+	}
+	if got := sanitizePathName(""); got != "album" {
+		t.Fatalf("expected default album folder name, got %q", got)
+	}
+}
+
+func TestSanitizeFileName(t *testing.T) {
+	if got := sanitizeFileName(`weird\u0080name test.jpg`); got != "weirdname_test.jpg" {
+		t.Fatalf("unexpected sanitized file name: %q", got)
+	}
+}
+
+func TestDownloadDestPathUsesSanitizedNames(t *testing.T) {
+	file := AlbumFile{Name: "My Photo.jpg"}
+	got := downloadDestPath("/tmp/out", "Album: One", file)
+	want := filepath.Join("/tmp/out", "Album_One", "My_Photo.jpg")
+	if got != want {
+		t.Fatalf("unexpected dest path: %q", got)
+	}
+}
 
 func TestFilterDownloadFilesByType(t *testing.T) {
 	files := []AlbumFile{
@@ -31,15 +65,6 @@ func TestFilterDownloadFilesByIncludePatterns(t *testing.T) {
 	})
 	if len(filtered) != 1 || filtered[0].Name != "set-01.jpg" {
 		t.Fatalf("unexpected filtered files: %#v", filtered)
-	}
-}
-
-func TestSanitizePathName(t *testing.T) {
-	if got := sanitizePathName(`Album: Test / Part 1`); got != "Album_ Test _ Part 1" {
-		t.Fatalf("unexpected sanitized path: %q", got)
-	}
-	if got := sanitizePathName(""); got != "album" {
-		t.Fatalf("expected default album folder name, got %q", got)
 	}
 }
 

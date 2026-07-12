@@ -173,7 +173,7 @@ func (s *BunkrService) runDownload(ctx context.Context, album *Album, outputFold
 		default:
 		}
 
-		destPath := filepath.Join(albumDir, sanitizeFileName(file.Name))
+		destPath := downloadDestPath(outputFolder, album.Title, file)
 		fileIndex := fileAlbumIndex(album.Files, file)
 
 		if _, err := os.Stat(destPath); err == nil {
@@ -221,15 +221,16 @@ func (s *BunkrService) runDownload(ctx context.Context, album *Album, outputFold
 				break
 			}
 			s.emitDownloadProgress(DownloadProgress{
-				Running:        true,
+				Running:        false,
+				Cancelled:      true,
 				CurrentName:    file.Name,
 				CurrentIndex:   fileIndex,
 				CompletedCount: completed,
 				TotalCount:     total,
 				FileStatus:     "failed",
-				Error:          err.Error(),
+				Error:          fmt.Sprintf("download failed for %s: %v", file.Name, err),
 			})
-			continue
+			return
 		}
 
 		completed++
@@ -420,31 +421,6 @@ func normalizeDownloadType(value string) string {
 	default:
 		return "file"
 	}
-}
-
-func sanitizePathName(name string) string {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return "album"
-	}
-	replacer := strings.NewReplacer(
-		"/", "_", "\\", "_", ":", "_", "*", "_", "?", "_",
-		"\"", "_", "<", "_", ">", "_", "|", "_",
-	)
-	name = replacer.Replace(name)
-	name = strings.Trim(name, ". ")
-	if name == "" {
-		return "album"
-	}
-	return name
-}
-
-func sanitizeFileName(name string) string {
-	name = filepath.Base(strings.TrimSpace(name))
-	if name == "" || name == "." {
-		return "download.bin"
-	}
-	return sanitizePathName(name)
 }
 
 func fileAlbumIndex(files []AlbumFile, target AlbumFile) int {

@@ -330,6 +330,125 @@ export class DownloadProgress {
     }
 }
 
+export class FileDetails {
+    /**
+     * Creates a new FileDetails instance.
+     * @param {Partial<FileDetails>} [$$source = {}] - The source object to create the FileDetails.
+     */
+    constructor($$source = {}) {
+        if (!("index" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["index"] = 0;
+        }
+        if (!("fileID" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["fileID"] = 0;
+        }
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("type" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["type"] = "";
+        }
+        if (!("mimeType" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["mimeType"] = "";
+        }
+        if (!("size" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["size"] = "";
+        }
+        if (!("sizeBytes" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["sizeBytes"] = 0;
+        }
+        if (!("date" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["date"] = "";
+        }
+        if (!("previewURL" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["previewURL"] = "";
+        }
+        if (!("fileURL" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["fileURL"] = "";
+        }
+        if (!("mediaURL" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["mediaURL"] = "";
+        }
+        if (!("mediaURLError" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["mediaURLError"] = "";
+        }
+        if (!("onDisk" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["onDisk"] = false;
+        }
+        if (!("diskPath" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["diskPath"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new FileDetails instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {FileDetails}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new FileDetails(/** @type {Partial<FileDetails>} */($$parsedSource));
+    }
+}
+
 // Private type creation functions
 const $$createType0 = AlbumFile.createFrom;
 const $$createType1 = $Create.Array($$createType0);

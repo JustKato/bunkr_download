@@ -15,6 +15,11 @@ distrobox enter "$BOX_NAME" -- bash -lc "
     set -euo pipefail
     export PATH=\"\$HOME/.local/bin:\$PATH\"
     cd '$PROJECT_DIR'
+    if grep -rq '@wailsio/runtime' frontend/bindings/ 2>/dev/null; then
+        echo 'ERROR: bindings import @wailsio/runtime (needs npm). Regenerate with:' >&2
+        echo '  wails3 generate bindings -clean=true -b' >&2
+        exit 1
+    fi
     mkdir -p build/bin
     go build -o build/bin/bunkrdownload .
 "

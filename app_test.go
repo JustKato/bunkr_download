@@ -169,6 +169,9 @@ func TestValidateURLRequiresSupportedBunkrAlbum(t *testing.T) {
 	if _, err := service.ValidateURL(" https://example.invalid/album-redacted "); err != nil {
 		t.Fatalf("expected valid album URL: %v", err)
 	}
+	if _, err := service.ValidateURL("https://example.invalid/album-redacted"); err != nil {
+		t.Fatalf("expected bunkr.black album URL to be accepted: %v", err)
+	}
 
 	for _, raw := range []string{
 		"https://example.com/a/Csx7AzrM",
@@ -178,5 +181,23 @@ func TestValidateURLRequiresSupportedBunkrAlbum(t *testing.T) {
 		if _, err := service.ValidateURL(raw); err == nil {
 			t.Errorf("expected %q to be rejected", raw)
 		}
+	}
+}
+
+func TestCanonicalBunkrAlbumURL(t *testing.T) {
+	got, err := canonicalBunkrAlbumURL("https://example.invalid/album-redacted")
+	if err != nil {
+		t.Fatalf("canonicalBunkrAlbumURL returned an error: %v", err)
+	}
+	if got != "https://example.invalid/album-redacted" {
+		t.Fatalf("expected bunkr.black to rewrite to bunkr.cr, got %q", got)
+	}
+
+	unchanged, err := canonicalBunkrAlbumURL("https://example.invalid/album-redacted?foo=bar")
+	if err != nil {
+		t.Fatalf("canonicalBunkrAlbumURL returned an error: %v", err)
+	}
+	if unchanged != "https://example.invalid/album-redacted?foo=bar" {
+		t.Fatalf("expected query to be preserved, got %q", unchanged)
 	}
 }
