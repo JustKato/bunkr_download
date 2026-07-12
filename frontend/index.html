@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bunkr Downloader</title>
+  <link rel="stylesheet" href="src/style.css" />
+</head>
+<body>
+  <div class="app-frame">
+
+    <nav class="menubar" id="menubar">
+      <div class="menu-root">
+        <button class="menu-trigger" type="button" data-menu="file-menu">FILE</button>
+        <div class="menu-dropdown" id="file-menu" hidden>
+          <button type="button" data-action="new-album">New Album</button>
+          <button type="button" data-action="choose-folder">Select Output Folder</button>
+          <button type="button" data-action="exit">Exit</button>
+        </div>
+      </div>
+      <div class="menu-root">
+        <button class="menu-trigger" type="button" data-menu="downloads-menu">DOWNLOADS</button>
+        <div class="menu-dropdown" id="downloads-menu" hidden>
+          <button type="button" data-action="download-album">Download Album</button>
+          <button type="button" data-action="cancel-download">Cancel Download</button>
+          <button type="button" data-action="open-folder">Open Output Folder</button>
+        </div>
+      </div>
+      <div class="menu-root">
+        <button class="menu-trigger" type="button" data-menu="settings-menu">SETTINGS</button>
+        <div class="menu-dropdown" id="settings-menu" hidden>
+          <button type="button" data-action="focus-sidebar">Focus Download Panel</button>
+          <button type="button" data-action="reset-filters">Reset Filters</button>
+        </div>
+      </div>
+      <div class="menu-root">
+        <button class="menu-trigger" type="button" data-menu="help-menu">HELP</button>
+        <div class="menu-dropdown" id="help-menu" hidden>
+          <button type="button" data-action="about">About Bunkr Downloader</button>
+        </div>
+      </div>
+    </nav>
+
+    <section class="addressbar">
+      <label class="address-label" for="url-input">ADDRESS</label>
+      <input
+        id="url-input"
+        class="address-input"
+        type="text"
+        spellcheck="false"
+        placeholder="https://example.invalid/album-redacted"
+        autocomplete="off"
+      />
+      <button id="go-btn" class="go-btn">FETCH</button>
+    </section>
+
+    <main class="content">
+      <aside class="sidebar" id="sidebar" tabindex="-1">
+        <section class="sidebar-section">
+          <h2 class="sidebar-title">DOWNLOAD OPTIONS</h2>
+          <label class="field-label" for="output-folder">OUTPUT FOLDER</label>
+          <div class="folder-row">
+            <input id="output-folder" class="sidebar-input" type="text" spellcheck="false" placeholder="Not selected" />
+            <button id="browse-folder-btn" class="sidebar-btn" type="button">BROWSE</button>
+          </div>
+        </section>
+
+        <section class="sidebar-section">
+          <h2 class="sidebar-title">DOWNLOAD FILTERS</h2>
+          <div class="filter-grid">
+            <label class="retro-check"><input type="checkbox" id="filter-image" checked /><span>Images</span></label>
+            <label class="retro-check"><input type="checkbox" id="filter-video" checked /><span>Videos</span></label>
+            <label class="retro-check"><input type="checkbox" id="filter-audio" checked /><span>Audio</span></label>
+            <label class="retro-check"><input type="checkbox" id="filter-file" checked /><span>Other</span></label>
+          </div>
+          <label class="field-label" for="include-patterns">INCLUDE PATTERNS</label>
+          <input
+            id="include-patterns"
+            class="sidebar-input"
+            type="text"
+            spellcheck="false"
+            placeholder="*.jpg, *set*"
+          />
+        </section>
+
+        <section class="sidebar-section">
+          <h2 class="sidebar-title">ACTIONS</h2>
+          <div class="action-row">
+            <button id="download-btn" class="sidebar-btn primary" type="button" disabled>DOWNLOAD ALBUM</button>
+            <button id="cancel-download-btn" class="sidebar-btn" type="button" disabled>CANCEL</button>
+          </div>
+        </section>
+
+        <section class="sidebar-section">
+          <h2 class="sidebar-title">PROGRESS</h2>
+          <p id="current-file-label" class="progress-label">CURRENT: -</p>
+          <div class="progress-track"><div id="current-progress" class="progress-fill"></div></div>
+          <p id="overall-label" class="progress-label">OVERALL: 0 / 0</p>
+          <div class="progress-track"><div id="overall-progress" class="progress-fill"></div></div>
+        </section>
+      </aside>
+
+      <div class="main-panel">
+        <div class="panel">
+          <div class="panel-header" id="panel-title">ALBUM FILES</div>
+          <div class="panel-body">
+            <div id="empty-state" class="empty-state">
+              <p class="empty-title">NO ARCHIVE LOADED</p>
+              <p class="empty-hint">Paste a Bunkr album URL above and hit FETCH.</p>
+              <p class="empty-note">Click a file to preview it.</p>
+            </div>
+            <section id="album-summary" class="album-summary" hidden>
+              <div>
+                <p id="album-name" class="album-name"></p>
+                <p id="album-source" class="album-source"></p>
+              </div>
+              <p id="album-stats" class="album-stats"></p>
+            </section>
+            <div id="file-list" class="file-list" aria-live="polite" tabindex="-1"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="statusbar">
+      <span id="status-text" class="status-text">Ready</span>
+      <span class="status-right">bunkrdownload</span>
+    </footer>
+
+  </div>
+
+  <div id="about-modal" class="modal-overlay" hidden>
+    <div class="modal-panel">
+      <div class="modal-header">ABOUT BUNKR DOWNLOADER</div>
+      <div class="modal-body">
+        <p>Bunkr album scraper/downloader.</p>
+        <p>Go + Wails.</p>
+      </div>
+      <div class="modal-actions">
+        <button id="about-close-btn" class="sidebar-btn primary" type="button">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

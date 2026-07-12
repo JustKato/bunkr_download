@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Preview</title>
+  <link rel="stylesheet" href="src/style.css" />
+  <link rel="stylesheet" href="src/preview.css" />
+</head>
+<body class="preview-body">
+  <div class="preview-frame">
+    <header class="preview-header">
+      <p id="preview-name" class="preview-name">LOADING...</p>
+      <p id="preview-counter" class="preview-counter">0 / 0</p>
+    </header>
+
+    <main id="preview-stage" class="preview-stage">
+      <p id="preview-message" class="preview-message">Loading...</p>
+      <div id="preview-viewport" class="preview-viewport" hidden>
+        <div id="preview-media-layer" class="preview-media-layer"></div>
+      </div>
+      <div id="preview-media-wrap" class="preview-media-wrap" hidden></div>
+    </main>
+
+    <footer class="preview-toolbar">
+      <button id="preview-prev" class="preview-btn" type="button">◀ PREV</button>
+      <button id="preview-flip-x" class="preview-btn" type="button">FLIP H</button>
+      <button id="preview-flip-y" class="preview-btn" type="button">FLIP V</button>
+      <span id="preview-zoom" class="preview-zoom">100%</span>
+      <button id="preview-next" class="preview-btn" type="button">NEXT ▶</button>
+    </footer>
+  </div>
+
+  <script type="module" src="src/preview.js"></script>
+</body>
+</html>

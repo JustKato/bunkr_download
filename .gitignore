@@ -1,0 +1,23 @@
+# Wails build output
+build/bin/
+build/appicon.png
+*.exe
+*.app
+
+# Go dependencies and test artifacts
+vendor/
+*.test
+*.out
+coverage.out
+
+# JavaScript dependencies and generated frontend assets
+node_modules/
+frontend/dist/
+
+# IDE and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
