@@ -12,6 +12,8 @@ import (
 var assets embed.FS
 
 func main() {
+	installLinuxDesktopIntegration()
+
 	frontend, err := fs.Sub(assets, "embedded/frontend")
 	if err != nil {
 		log.Fatal(err)
@@ -26,6 +28,9 @@ func main() {
 		},
 		Assets: application.AssetOptions{
 			Handler: newFrontendHandler(frontend),
+		},
+		Linux: application.LinuxOptions{
+			ProgramName: "bunkrdownload",
 		},
 	})
 

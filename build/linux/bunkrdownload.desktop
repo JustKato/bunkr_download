@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Bunkr Downloader
+Comment=Bunkr album downloader
+Exec=bunkrdownload
+Icon=com.danlegt.bunkrdownload
+Terminal=false
+Categories=Network;Utility;
+StartupNotify=true
+StartupWMClass=org.wails.bunkr_downloader
+X-GNOME-Startup-Class=org.wails.bunkr_downloader
+X-KDE-StartupClass=org.wails.bunkr_downloader
