@@ -1,4 +1,5 @@
 # Bunkr Download
+![License: Apache License 2.0](https://img.shields.io/badge/License-apache2.0-blue.svg)
 
 ![Preview](./assets/preview.png)
 
