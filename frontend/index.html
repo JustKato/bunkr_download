@@ -16,6 +16,10 @@
           <button type="button" data-action="new-album">New Album</button>
           <button type="button" data-action="choose-folder">Select Output Folder</button>
           <button type="button" data-action="exit">Exit</button>
+          <p class="menu-section-label">ALBUM HISTORY</p>
+          <div id="file-menu-history" class="menu-history-panel">
+            <p class="menu-history-empty">No albums yet</p>
+          </div>
         </div>
       </div>
       <div class="menu-root">
@@ -34,6 +38,29 @@
         </div>
       </div>
       <div class="menu-root">
+        <button class="menu-trigger" type="button" data-menu="view-menu">VIEW</button>
+        <div class="menu-dropdown" id="view-menu" hidden>
+          <div class="menu-submenu-root">
+            <button type="button" class="menu-submenu-trigger" data-submenu="view-pagination-menu">
+              Pagination<span class="menu-submenu-arrow">▶</span>
+            </button>
+            <div class="menu-dropdown menu-submenu" id="view-pagination-menu" hidden>
+              <button type="button" data-action="pagination-mode-pages" data-check-group="paginationMode" data-check-value="pagination">Pagination</button>
+              <button type="button" data-action="pagination-mode-infinite" data-check-group="paginationMode" data-check-value="infinite-scroll">Infinite Scroll</button>
+            </div>
+          </div>
+          <div class="menu-submenu-root">
+            <button type="button" class="menu-submenu-trigger" data-submenu="view-mode-menu">
+              View Mode<span class="menu-submenu-arrow">▶</span>
+            </button>
+            <div class="menu-dropdown menu-submenu" id="view-mode-menu" hidden>
+              <button type="button" data-action="view-mode-list" data-check-group="viewMode" data-check-value="list">List View</button>
+              <button type="button" data-action="view-mode-gallery" data-check-group="viewMode" data-check-value="gallery">Gallery View</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="menu-root">
         <button class="menu-trigger" type="button" data-menu="help-menu">HELP</button>
         <div class="menu-dropdown" id="help-menu" hidden>
           <button type="button" data-action="about">About Bunkr Downloader</button>
@@ -42,6 +69,12 @@
     </nav>
 
     <section class="addressbar">
+      <div class="history-picker" id="history-picker">
+        <button id="history-trigger" class="history-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+          HISTORY
+        </button>
+        <div id="history-menu" class="history-menu" hidden role="listbox" aria-label="Album history"></div>
+      </div>
       <label class="address-label" for="url-input">ADDRESS</label>
       <input
         id="url-input"
@@ -51,9 +84,6 @@
         placeholder="https://example.invalid/album-redacted"
         autocomplete="off"
       />
-      <select id="album-history" class="address-history" title="Album history" aria-label="Album history">
-        <option value="">HISTORY</option>
-      </select>
       <button id="go-btn" class="go-btn">FETCH</button>
     </section>
 
@@ -119,7 +149,15 @@
               </div>
               <p id="album-stats" class="album-stats"></p>
             </section>
-            <div id="file-list" class="file-list" aria-live="polite" tabindex="-1"></div>
+            <div id="file-view-shell" class="file-view-shell" hidden>
+              <nav id="pagination-bar" class="pagination-bar" hidden aria-label="Album pagination">
+                <button id="page-prev" class="sidebar-btn" type="button">PREV</button>
+                <span id="page-info" class="page-info">Page 1 / 1</span>
+                <button id="page-next" class="sidebar-btn" type="button">NEXT</button>
+              </nav>
+              <div id="file-list" class="file-list file-list-mode-list" aria-live="polite" tabindex="-1"></div>
+              <div id="infinite-sentinel" class="infinite-sentinel" hidden aria-hidden="true"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -130,29 +168,6 @@
       <span class="status-right">bunkrdownload</span>
     </footer>
 
-  </div>
-
-  <div id="about-modal" class="modal-overlay" hidden>
-    <div class="modal-panel">
-      <div class="modal-header">ABOUT BUNKR DOWNLOADER</div>
-      <div class="modal-body">
-        <p>Bunkr album scraper/downloader.</p>
-        <p>Go + Wails.</p>
-      </div>
-      <div class="modal-actions">
-        <button id="about-close-btn" class="sidebar-btn primary" type="button">OK</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="file-info-modal" class="modal-overlay" hidden>
-    <div class="modal-panel modal-panel-wide">
-      <div class="modal-header">FILE INFO</div>
-      <div class="modal-body" id="file-info-body"></div>
-      <div class="modal-actions">
-        <button id="file-info-close-btn" class="sidebar-btn primary" type="button">OK</button>
-      </div>
-    </div>
   </div>
 
   <div id="file-context-menu" class="context-menu" hidden>

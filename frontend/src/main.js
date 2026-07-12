@@ -5,9 +5,10 @@ import {
   DownloadFileAtIndex,
   GetDownloadProgress,
   GetDownloadedFileIndices,
-  GetFileDetails,
   GetAlbumHistory,
   GetSettings,
+  OpenAbout,
+  OpenFileInfo,
   OpenOutputFolder,
   OpenPreview,
   Quit,
@@ -16,11 +17,15 @@ import {
   SetOutputFolder,
   StartDownload,
 } from "../bindings/github.com/justkato/bunkr_download/bunkrservice.js";
-import { initContextMenu, renderFileInfoBody } from "./context-menu.js";
+import { initContextMenu } from "./context-menu.js";
+import { initHistoryPicker } from "./history-picker.js";
 import { initMenu } from "./menu.js";
 
 const input = document.getElementById("url-input");
-const historySelect = document.getElementById("album-history");
+const historyPickerRoot = document.getElementById("history-picker");
+const historyTrigger = document.getElementById("history-trigger");
+const historyMenu = document.getElementById("history-menu");
+const fileMenuHistory = document.getElementById("file-menu-history");
 const goBtn = document.getElementById("go-btn");
 const statusText = document.getElementById("status-text");
 const panelTitle = document.getElementById("panel-title");
@@ -29,6 +34,13 @@ const albumName = document.getElementById("album-name");
 const albumSource = document.getElementById("album-source");
 const albumStats = document.getElementById("album-stats");
 const fileList = document.getElementById("file-list");
+const fileViewShell = document.getElementById("file-view-shell");
+const paginationBar = document.getElementById("pagination-bar");
+const pagePrevBtn = document.getElementById("page-prev");
+const pageNextBtn = document.getElementById("page-next");
+const pageInfo = document.getElementById("page-info");
+const infiniteSentinel = document.getElementById("infinite-sentinel");
+const panelBody = document.querySelector(".main-panel .panel-body");
 const sidebar = document.getElementById("sidebar");
 const outputFolderInput = document.getElementById("output-folder");
 const browseFolderBtn = document.getElementById("browse-folder-btn");
@@ -43,18 +55,23 @@ const currentFileLabel = document.getElementById("current-file-label");
 const overallLabel = document.getElementById("overall-label");
 const currentProgress = document.getElementById("current-progress");
 const overallProgress = document.getElementById("overall-progress");
-const aboutModal = document.getElementById("about-modal");
-const aboutCloseBtn = document.getElementById("about-close-btn");
 const statusbar = document.getElementById("statusbar");
-const fileInfoModal = document.getElementById("file-info-modal");
-const fileInfoBody = document.getElementById("file-info-body");
-const fileInfoCloseBtn = document.getElementById("file-info-close-btn");
 const fileContextMenu = document.getElementById("file-context-menu");
 
 let currentAlbum = null;
 let downloadRunning = false;
 const rowStatus = new Map();
 let saveSettingsTimer = null;
+let currentPage = 1;
+let infiniteRenderedCount = 0;
+let infiniteObserver = null;
+
+const PAGE_SIZE = 25;
+
+const viewSettings = {
+  paginationMode: "pagination",
+  viewMode: "list",
+};
 
 function getEmptyState() {
   return document.getElementById("empty-state");
@@ -76,7 +93,11 @@ function ensureEmptyState() {
 
 function showEmptyStateDefault() {
   albumSummary.hidden = true;
+  if (fileViewShell) {
+    fileViewShell.hidden = true;
+  }
   fileList.replaceChildren();
+  teardownInfiniteScroll();
   const state = ensureEmptyState();
   state.className = "empty-state";
   state.hidden = false;
@@ -89,7 +110,11 @@ function showEmptyStateDefault() {
 
 function setEmptyStateLoading(message, hint = "Large albums can take a little while.") {
   albumSummary.hidden = true;
+  if (fileViewShell) {
+    fileViewShell.hidden = true;
+  }
   fileList.replaceChildren();
+  teardownInfiniteScroll();
   const state = ensureEmptyState();
   state.className = "empty-state empty-state-loading";
   state.hidden = false;
@@ -117,9 +142,7 @@ function setLoading(isLoading) {
   goBtn.disabled = isLoading;
   goBtn.textContent = isLoading ? "LOADING..." : "FETCH";
   input.disabled = isLoading;
-  if (historySelect) {
-    historySelect.disabled = isLoading;
-  }
+  historyPicker?.setDisabled(isLoading);
 }
 
 function formatHistoryLabel(entry) {
@@ -128,23 +151,47 @@ function formatHistoryLabel(entry) {
   return `${id} | ${title}`;
 }
 
-function renderAlbumHistory(history) {
-  if (!historySelect) {
+function selectHistoryUrl(url) {
+  const trimmed = String(url || "").trim();
+  if (!trimmed) {
+    return;
+  }
+  input.value = trimmed;
+  onFetch();
+}
+
+function renderFileMenuHistory(history) {
+  if (!fileMenuHistory) {
     return;
   }
 
-  historySelect.replaceChildren();
-  const placeholder = document.createElement("option");
-  placeholder.value = "";
-  placeholder.textContent = "HISTORY";
-  historySelect.append(placeholder);
+  fileMenuHistory.replaceChildren();
+  if (!history.length) {
+    const empty = document.createElement("p");
+    empty.className = "menu-history-empty";
+    empty.textContent = "No albums yet";
+    fileMenuHistory.append(empty);
+    return;
+  }
 
   for (const entry of history) {
-    const option = document.createElement("option");
-    option.value = entry.url || "";
-    option.textContent = formatHistoryLabel(entry);
-    historySelect.append(option);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "menu-history-item";
+    button.textContent = formatHistoryLabel(entry);
+    button.title = entry.url || "";
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      menuControls?.closeMenus();
+      selectHistoryUrl(entry.url);
+    });
+    fileMenuHistory.append(button);
   }
+}
+
+function renderAlbumHistory(history) {
+  historyPicker?.render(history, formatHistoryLabel);
+  renderFileMenuHistory(history);
 }
 
 async function refreshAlbumHistory() {
@@ -207,6 +254,8 @@ function buildSettingsFromUI() {
     outputFolder: outputFolderInput.value.trim(),
     filterTypes: getFilterTypes(),
     includePatterns: includePatterns.value.trim(),
+    paginationMode: viewSettings.paginationMode,
+    viewMode: viewSettings.viewMode,
   };
 }
 
@@ -218,6 +267,189 @@ function applySettingsToUI(settings) {
   filterAudio.checked = types.size === 0 || types.has("Audio");
   filterFile.checked = types.size === 0 || types.has("File");
   includePatterns.value = settings.includePatterns || "";
+  viewSettings.paginationMode =
+    settings.paginationMode === "infinite-scroll" ? "infinite-scroll" : "pagination";
+  viewSettings.viewMode = settings.viewMode === "gallery" ? "gallery" : "list";
+  applyViewModeClasses();
+  updateViewMenuChecks();
+}
+
+function applyViewModeClasses() {
+  fileList.classList.toggle("file-list-mode-list", viewSettings.viewMode === "list");
+  fileList.classList.toggle("file-list-mode-gallery", viewSettings.viewMode === "gallery");
+}
+
+function updateViewMenuChecks() {
+  for (const button of document.querySelectorAll("[data-check-group]")) {
+    const group = button.dataset.checkGroup;
+    const value = button.dataset.checkValue;
+    const current =
+      group === "paginationMode" ? viewSettings.paginationMode : viewSettings.viewMode;
+    const checked = value === current;
+    button.classList.toggle("checked", checked);
+    button.setAttribute("aria-checked", checked ? "true" : "false");
+  }
+}
+
+function setPaginationMode(mode) {
+  const nextMode = mode === "infinite-scroll" ? "infinite-scroll" : "pagination";
+  if (viewSettings.paginationMode === nextMode) {
+    return;
+  }
+  viewSettings.paginationMode = nextMode;
+  currentPage = 1;
+  infiniteRenderedCount = 0;
+  updateViewMenuChecks();
+  scheduleSaveSettings();
+  if (currentAlbum) {
+    renderVisibleFiles();
+  }
+}
+
+function setViewMode(mode) {
+  const nextMode = mode === "gallery" ? "gallery" : "list";
+  if (viewSettings.viewMode === nextMode) {
+    return;
+  }
+  viewSettings.viewMode = nextMode;
+  applyViewModeClasses();
+  updateViewMenuChecks();
+  scheduleSaveSettings();
+  if (currentAlbum) {
+    renderVisibleFiles();
+  }
+}
+
+function getTotalPages(totalFiles = currentAlbum?.files?.length || 0) {
+  return Math.max(1, Math.ceil(totalFiles / PAGE_SIZE));
+}
+
+function teardownInfiniteScroll() {
+  if (infiniteObserver) {
+    infiniteObserver.disconnect();
+    infiniteObserver = null;
+  }
+  if (infiniteSentinel) {
+    infiniteSentinel.hidden = true;
+  }
+}
+
+function setupInfiniteScroll() {
+  teardownInfiniteScroll();
+  if (!currentAlbum || viewSettings.paginationMode !== "infinite-scroll" || !infiniteSentinel) {
+    return;
+  }
+
+  infiniteSentinel.hidden = false;
+  infiniteObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        loadMoreInfiniteItems();
+      }
+    },
+    {
+      root: panelBody,
+      rootMargin: "240px",
+    },
+  );
+  infiniteObserver.observe(infiniteSentinel);
+}
+
+function updatePaginationControls() {
+  if (!paginationBar || !currentAlbum || viewSettings.paginationMode !== "pagination") {
+    if (paginationBar) {
+      paginationBar.hidden = true;
+    }
+    return;
+  }
+
+  const total = currentAlbum.files.length;
+  const totalPages = getTotalPages(total);
+  currentPage = Math.min(Math.max(currentPage, 1), totalPages);
+
+  paginationBar.hidden = total <= PAGE_SIZE;
+  if (pageInfo) {
+    pageInfo.textContent = `Page ${currentPage} / ${totalPages}`;
+  }
+  if (pagePrevBtn) {
+    pagePrevBtn.disabled = currentPage <= 1;
+  }
+  if (pageNextBtn) {
+    pageNextBtn.disabled = currentPage >= totalPages;
+  }
+}
+
+function appendFileItems(start, end) {
+  if (!currentAlbum) {
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  for (let index = start; index < end; index++) {
+    fragment.append(makeFileItem(currentAlbum.files[index], index));
+  }
+
+  if (viewSettings.paginationMode === "infinite-scroll" && infiniteSentinel) {
+    fileList.insertBefore(fragment, infiniteSentinel);
+  } else {
+    fileList.append(fragment);
+  }
+
+  for (let index = start; index < end; index++) {
+    updateRowBadge(index);
+  }
+}
+
+function loadMoreInfiniteItems() {
+  if (!currentAlbum || viewSettings.paginationMode !== "infinite-scroll") {
+    return;
+  }
+
+  const total = currentAlbum.files.length;
+  if (infiniteRenderedCount >= total) {
+    if (infiniteSentinel) {
+      infiniteSentinel.hidden = true;
+    }
+    return;
+  }
+
+  const start = infiniteRenderedCount;
+  const end = Math.min(start + PAGE_SIZE, total);
+  appendFileItems(start, end);
+  infiniteRenderedCount = end;
+
+  if (infiniteRenderedCount >= total && infiniteSentinel) {
+    infiniteSentinel.hidden = true;
+  }
+}
+
+function renderVisibleFiles() {
+  if (!currentAlbum) {
+    return;
+  }
+
+  teardownInfiniteScroll();
+  fileList.replaceChildren();
+  infiniteRenderedCount = 0;
+  currentPage = Math.min(currentPage, getTotalPages(currentAlbum.files.length));
+
+  if (viewSettings.paginationMode === "infinite-scroll") {
+    if (paginationBar) {
+      paginationBar.hidden = true;
+    }
+    if (infiniteSentinel) {
+      fileList.append(infiniteSentinel);
+    }
+    loadMoreInfiniteItems();
+    setupInfiniteScroll();
+    return;
+  }
+
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const end = Math.min(start + PAGE_SIZE, currentAlbum.files.length);
+  appendFileItems(start, end);
+  updatePaginationControls();
+  panelBody?.scrollTo({ top: 0, behavior: "auto" });
 }
 
 function scheduleSaveSettings() {
@@ -456,17 +688,59 @@ async function downloadSingleFile(index) {
 
 async function showFileAbout(index) {
   try {
-    const details = await GetFileDetails(index);
-    renderFileInfoBody(fileInfoBody, details);
-    fileInfoModal.hidden = false;
+    await OpenFileInfo(index);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     setStatus(`File info failed: ${message}`, true);
   }
 }
 
-function hideFileInfo() {
-  fileInfoModal.hidden = true;
+function activateFileItem(file, index) {
+  if (canPreview(file)) {
+    openFilePreview(index);
+  } else {
+    setStatus("No preview for this file", true);
+  }
+}
+
+function attachFileItemHandlers(item, file, index) {
+  item.addEventListener("click", (event) => {
+    if (event.defaultPrevented) {
+      return;
+    }
+    activateFileItem(file, index);
+  });
+
+  item.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    fileMenu?.show(event.clientX, event.clientY, index);
+  });
+}
+
+function appendPreviewMedia(container, file, loadedClass) {
+  const previewFallback = document.createElement("span");
+  previewFallback.className = container.classList.contains("gallery-thumb")
+    ? "gallery-thumb-fallback"
+    : "file-preview-fallback";
+  previewFallback.textContent = typeIcon(file.type);
+  container.append(previewFallback);
+
+  if (file.previewURL) {
+    const image = document.createElement("img");
+    image.src = file.previewURL;
+    image.alt = "";
+    image.loading = "lazy";
+    image.addEventListener("load", () => container.classList.add(loadedClass));
+    image.addEventListener("error", () => image.remove());
+    container.append(image);
+  }
+}
+
+function makeStatusBadge() {
+  const statusBadge = document.createElement("span");
+  statusBadge.className = "file-status";
+  statusBadge.hidden = true;
+  return statusBadge;
 }
 
 function makeFileRow(file, index) {
@@ -477,21 +751,7 @@ function makeFileRow(file, index) {
 
   const preview = document.createElement("div");
   preview.className = "file-preview";
-
-  const previewFallback = document.createElement("span");
-  previewFallback.className = "file-preview-fallback";
-  previewFallback.textContent = typeIcon(file.type);
-  preview.append(previewFallback);
-
-  if (file.previewURL) {
-    const image = document.createElement("img");
-    image.src = file.previewURL;
-    image.alt = "";
-    image.loading = "lazy";
-    image.addEventListener("load", () => preview.classList.add("has-preview"));
-    image.addEventListener("error", () => image.remove());
-    preview.append(image);
-  }
+  appendPreviewMedia(preview, file, "has-preview");
 
   const details = document.createElement("div");
   details.className = "file-details";
@@ -499,18 +759,12 @@ function makeFileRow(file, index) {
   const nameRow = document.createElement("div");
   nameRow.className = "file-name-row";
 
-  const name = document.createElement("a");
+  const name = document.createElement("span");
   name.className = "file-name";
-  name.href = file.fileURL;
-  name.target = "_blank";
-  name.rel = "noopener noreferrer";
   name.textContent = file.name || "Unnamed file";
-  name.addEventListener("click", (event) => event.stopPropagation());
+  name.title = file.name || "Unnamed file";
 
-  const statusBadge = document.createElement("span");
-  statusBadge.className = "file-status";
-  statusBadge.hidden = true;
-
+  const statusBadge = makeStatusBadge();
   nameRow.append(name, statusBadge);
 
   const meta = document.createElement("div");
@@ -529,29 +783,59 @@ function makeFileRow(file, index) {
   meta.append(type, size, date);
   details.append(nameRow, meta);
   row.append(preview, details);
-
-  if (previewable) {
-    row.addEventListener("click", () => openFilePreview(index));
-  } else {
-    row.addEventListener("click", () => {
-      setStatus("No preview for this file", true);
-    });
-  }
-
-  row.addEventListener("contextmenu", (event) => {
-    event.preventDefault();
-    fileMenu?.show(event.clientX, event.clientY, index);
-  });
-
+  attachFileItemHandlers(row, file, index);
   return row;
+}
+
+function makeFileGalleryCard(file, index) {
+  const previewable = canPreview(file);
+  const card = document.createElement("article");
+  card.className = previewable ? "gallery-card gallery-card-previewable" : "gallery-card";
+  card.dataset.index = String(index);
+
+  const thumb = document.createElement("div");
+  thumb.className = "gallery-thumb";
+  appendPreviewMedia(thumb, file, "has-preview");
+
+  const statusBadge = makeStatusBadge();
+  thumb.append(statusBadge);
+
+  const caption = document.createElement("div");
+  caption.className = "gallery-caption";
+
+  const name = document.createElement("p");
+  name.className = "gallery-name";
+  name.textContent = file.name || "Unnamed file";
+  name.title = file.name || "Unnamed file";
+
+  const meta = document.createElement("p");
+  meta.className = "gallery-meta";
+  meta.textContent = `${(file.type || "File").toUpperCase()} · ${file.size || "SIZE UNKNOWN"}`;
+
+  caption.append(name, meta);
+  card.append(thumb, caption);
+  attachFileItemHandlers(card, file, index);
+  return card;
+}
+
+function makeFileItem(file, index) {
+  if (viewSettings.viewMode === "gallery") {
+    return makeFileGalleryCard(file, index);
+  }
+  return makeFileRow(file, index);
 }
 
 async function renderAlbum(album) {
   currentAlbum = album;
   rowStatus.clear();
+  currentPage = 1;
+  infiniteRenderedCount = 0;
   hideEmptyState();
   albumSummary.hidden = false;
-  fileList.replaceChildren();
+  if (fileViewShell) {
+    fileViewShell.hidden = false;
+  }
+  applyViewModeClasses();
 
   panelTitle.textContent = `ALBUM FILES (${album.files.length})`;
   albumName.textContent = album.title;
@@ -559,20 +843,7 @@ async function renderAlbum(album) {
   albumStats.textContent = `${album.files.length} FILES  /  ${album.totalSize || "SIZE UNKNOWN"}`;
   updateDownloadControls();
 
-  const batchSize = 40;
-  for (let i = 0; i < album.files.length; i += batchSize) {
-    const fragment = document.createDocumentFragment();
-    const end = Math.min(i + batchSize, album.files.length);
-    for (let j = i; j < end; j++) {
-      fragment.append(makeFileRow(album.files[j], j));
-    }
-    fileList.append(fragment);
-    if (end < album.files.length) {
-      setStatus(`Rendering files... ${end}/${album.files.length}`);
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    }
-  }
-
+  renderVisibleFiles();
   markDownloadedFiles().catch(() => {});
 }
 
@@ -630,14 +901,23 @@ async function newAlbum() {
 }
 
 function showAbout() {
-  aboutModal.hidden = false;
+  OpenAbout().catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    setStatus(`About window failed: ${message}`, true);
+  });
 }
 
-function hideAbout() {
-  aboutModal.hidden = true;
-}
+const historyPicker =
+  historyPickerRoot && historyTrigger && historyMenu
+    ? initHistoryPicker({
+        root: historyPickerRoot,
+        trigger: historyTrigger,
+        menu: historyMenu,
+        onSelect: selectHistoryUrl,
+      })
+    : null;
 
-initMenu({
+const menuControls = initMenu({
   "new-album": () => newAlbum(),
   "choose-folder": () => chooseOutputFolder(),
   exit: () => Quit(),
@@ -650,6 +930,10 @@ initMenu({
     }),
   "focus-sidebar": () => sidebar.focus({ preventScroll: false }),
   "reset-filters": () => resetFilters(),
+  "pagination-mode-pages": () => setPaginationMode("pagination"),
+  "pagination-mode-infinite": () => setPaginationMode("infinite-scroll"),
+  "view-mode-list": () => setViewMode("list"),
+  "view-mode-gallery": () => setViewMode("gallery"),
   about: () => showAbout(),
 });
 
@@ -657,29 +941,24 @@ goBtn.addEventListener("click", onFetch);
 input.addEventListener("keydown", (e) => {
   if (e.key === "Enter") onFetch();
 });
-if (historySelect) {
-  historySelect.addEventListener("change", () => {
-    const url = historySelect.value.trim();
-    historySelect.value = "";
-    if (!url) {
-      return;
-    }
-    input.value = url;
-    onFetch();
-  });
-}
+
+pagePrevBtn?.addEventListener("click", () => {
+  if (currentPage > 1) {
+    currentPage -= 1;
+    renderVisibleFiles();
+  }
+});
+
+pageNextBtn?.addEventListener("click", () => {
+  if (currentAlbum && currentPage < getTotalPages()) {
+    currentPage += 1;
+    renderVisibleFiles();
+  }
+});
 
 browseFolderBtn.addEventListener("click", () => chooseOutputFolder());
 downloadBtn.addEventListener("click", () => startDownload());
 cancelDownloadBtn.addEventListener("click", () => cancelDownload());
-aboutCloseBtn.addEventListener("click", () => hideAbout());
-aboutModal.addEventListener("click", (event) => {
-  if (event.target === aboutModal) hideAbout();
-});
-fileInfoCloseBtn.addEventListener("click", () => hideFileInfo());
-fileInfoModal.addEventListener("click", (event) => {
-  if (event.target === fileInfoModal) hideFileInfo();
-});
 
 const fileMenu = fileContextMenu
   ? initContextMenu(fileContextMenu, {

@@ -2,6 +2,16 @@ export function initMenu(handlers) {
   const menubar = document.getElementById("menubar");
   let openMenu = null;
 
+  function closeSubmenus(container) {
+    const scope = container || document;
+    scope.querySelectorAll(".menu-submenu").forEach((menu) => {
+      menu.hidden = true;
+    });
+    scope.querySelectorAll(".menu-submenu-trigger").forEach((trigger) => {
+      trigger.classList.remove("open");
+    });
+  }
+
   function closeMenus() {
     document.querySelectorAll(".menu-dropdown").forEach((menu) => {
       menu.hidden = true;
@@ -9,6 +19,7 @@ export function initMenu(handlers) {
     document.querySelectorAll(".menu-trigger").forEach((trigger) => {
       trigger.classList.remove("open");
     });
+    closeSubmenus();
     openMenu = null;
   }
 
@@ -28,6 +39,22 @@ export function initMenu(handlers) {
       menu.hidden = false;
       trigger.classList.add("open");
       openMenu = menu;
+    });
+  });
+
+  document.querySelectorAll(".menu-submenu-trigger").forEach((trigger) => {
+    trigger.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const submenuID = trigger.dataset.submenu;
+      const submenu = document.getElementById(submenuID);
+      if (!submenu) return;
+
+      const parentMenu = trigger.closest(".menu-dropdown");
+      closeSubmenus(parentMenu);
+
+      const willOpen = submenu.hidden;
+      submenu.hidden = !willOpen;
+      trigger.classList.toggle("open", willOpen);
     });
   });
 

@@ -219,6 +219,20 @@ export class AppSettings {
              */
             this["includePatterns"] = "";
         }
+        if (!("paginationMode" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["paginationMode"] = "";
+        }
+        if (!("viewMode" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["viewMode"] = "";
+        }
 
         Object.assign(this, $$source);
     }

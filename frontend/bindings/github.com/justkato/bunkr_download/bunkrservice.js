@@ -33,6 +33,20 @@ export function ChooseOutputFolder() {
 }
 
 /**
+ * @returns {$CancellablePromise<void>}
+ */
+export function CloseAbout() {
+    return $Call.ByID(2906809692);
+}
+
+/**
+ * @returns {$CancellablePromise<void>}
+ */
+export function CloseFileInfo() {
+    return $Call.ByID(3050780857);
+}
+
+/**
  * @param {number} index
  * @returns {$CancellablePromise<void>}
  */
@@ -87,6 +101,13 @@ export function GetFileDetails(index) {
 }
 
 /**
+ * @returns {$CancellablePromise<number>}
+ */
+export function GetFileInfoIndex() {
+    return $Call.ByID(2517899523);
+}
+
+/**
  * @returns {$CancellablePromise<string>}
  */
 export function GetOutputFolder() {
@@ -107,6 +128,21 @@ export function GetSettings() {
     return $Call.ByID(2857995934).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType8($result);
     }));
+}
+
+/**
+ * @returns {$CancellablePromise<void>}
+ */
+export function OpenAbout() {
+    return $Call.ByID(2205366118);
+}
+
+/**
+ * @param {number} index
+ * @returns {$CancellablePromise<void>}
+ */
+export function OpenFileInfo(index) {
+    return $Call.ByID(2181628175, index);
 }
 
 /**

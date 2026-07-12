@@ -29,13 +29,13 @@ func main() {
 	})
 
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name:             "main",
+		Name:             windowMain,
 		Title:            "Bunkr Downloader",
 		Width:            1180,
 		Height:           720,
 		MinWidth:         900,
 		MinHeight:        520,
-		BackgroundColour: application.RGBA{Red: 38, Green: 42, Blue: 34, Alpha: 255},
+		BackgroundColour: windowBackground,
 		URL:              "/",
 	})
 

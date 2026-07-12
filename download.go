@@ -202,6 +202,17 @@ func (s *BunkrService) runDownload(ctx context.Context, album *Album, outputFold
 			FileStatus:     "downloading",
 		})
 
+		if err := s.downloadGate.Wait(ctx); err != nil {
+			cancelled = true
+			s.emitDownloadProgress(DownloadProgress{
+				Running:        false,
+				Cancelled:      true,
+				CompletedCount: completed,
+				TotalCount:     total,
+			})
+			return
+		}
+
 		err := s.downloadFile(ctx, file, destPath, func(bytesDone, bytesTotal int64) {
 			s.emitDownloadProgress(DownloadProgress{
 				Running:        true,
@@ -265,15 +276,17 @@ func (s *BunkrService) downloadFile(ctx context.Context, file AlbumFile, destPat
 	}
 
 	referer := fmt.Sprintf("%s/file/%d", bunkrDownloadRef, file.FileID)
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, mediaURL, nil)
-	if err != nil {
-		return err
-	}
-	request.Header.Set("Referer", referer)
-	request.Header.Set("Origin", bunkrDownloadRef)
-	request.Header.Set("User-Agent", httpUserAgent)
 
-	response, err := s.client.Do(request)
+	response, err := s.doRequestWithRetry(ctx, s.downloadClient, nil, func() (*http.Request, error) {
+		req, reqErr := http.NewRequest(http.MethodGet, mediaURL, nil)
+		if reqErr != nil {
+			return nil, reqErr
+		}
+		req.Header.Set("Referer", referer)
+		req.Header.Set("Origin", bunkrDownloadRef)
+		req.Header.Set("User-Agent", httpUserAgent)
+		return req, nil
+	})
 	if err != nil {
 		return err
 	}

@@ -129,7 +129,7 @@ func (s *BunkrService) cacheMediaFile(file AlbumFile) error {
 	request.Header.Set("Origin", bunkrDownloadRef)
 	request.Header.Set("User-Agent", httpUserAgent)
 
-	response, err := s.client.Do(request)
+	response, err := s.downloadClient.Do(request)
 	if err != nil {
 		return err
 	}

@@ -30,9 +30,16 @@ export function initContextMenu(menuEl, handlers) {
     });
   });
 
-  document.addEventListener("click", hide);
+  document.addEventListener("click", (event) => {
+    if (!menuEl.hidden && !menuEl.contains(event.target)) {
+      hide();
+    }
+  });
   document.addEventListener("contextmenu", (event) => {
-    if (!menuEl.contains(event.target)) {
+    if (event.defaultPrevented) {
+      return;
+    }
+    if (!menuEl.hidden && !menuEl.contains(event.target)) {
       hide();
     }
   });

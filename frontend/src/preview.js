@@ -2,12 +2,12 @@ import {
   CacheMediaFile,
   DownloadFileAtIndex,
   GetActiveAlbum,
-  GetFileDetails,
   GetPreviewIndex,
+  OpenFileInfo,
   ResolveMediaURL,
   SetPreviewIndex,
 } from "../bindings/github.com/justkato/bunkr_download/bunkrservice.js";
-import { initContextMenu, renderFileInfoBody } from "./context-menu.js";
+import { initContextMenu } from "./context-menu.js";
 
 const previewName = document.getElementById("preview-name");
 const previewCounter = document.getElementById("preview-counter");
@@ -21,9 +21,6 @@ const previewNext = document.getElementById("preview-next");
 const previewFlipX = document.getElementById("preview-flip-x");
 const previewFlipY = document.getElementById("preview-flip-y");
 const previewZoom = document.getElementById("preview-zoom");
-const fileInfoModal = document.getElementById("file-info-modal");
-const fileInfoBody = document.getElementById("file-info-body");
-const fileInfoCloseBtn = document.getElementById("file-info-close-btn");
 const fileContextMenu = document.getElementById("file-context-menu");
 
 const state = {
@@ -110,9 +107,7 @@ function showPreviewMessage(message, isError = false) {
 
 async function showFileAbout(index) {
   try {
-    const details = await GetFileDetails(index);
-    renderFileInfoBody(fileInfoBody, details);
-    fileInfoModal.hidden = false;
+    await OpenFileInfo(index);
   } catch (error) {
     showPreviewMessage(
       error instanceof Error ? error.message : String(error),
@@ -158,15 +153,6 @@ function bindPreviewContextMenu(target) {
 bindPreviewContextMenu(previewStage);
 bindPreviewContextMenu(previewViewport);
 bindPreviewContextMenu(previewMediaWrap);
-
-fileInfoCloseBtn?.addEventListener("click", () => {
-  fileInfoModal.hidden = true;
-});
-fileInfoModal?.addEventListener("click", (event) => {
-  if (event.target === fileInfoModal) {
-    fileInfoModal.hidden = true;
-  }
-});
 
 function updateToolbar() {
   previewPrev.disabled = state.currentListPos <= 0;

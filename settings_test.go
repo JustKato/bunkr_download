@@ -11,6 +11,12 @@ func TestDefaultAppSettings(t *testing.T) {
 	if len(settings.FilterTypes) != 4 {
 		t.Fatalf("expected 4 default filter types, got %d", len(settings.FilterTypes))
 	}
+	if settings.PaginationMode != "pagination" {
+		t.Fatalf("expected default pagination mode pagination, got %q", settings.PaginationMode)
+	}
+	if settings.ViewMode != "list" {
+		t.Fatalf("expected default view mode list, got %q", settings.ViewMode)
+	}
 }
 
 func TestSaveAndLoadAppSettings(t *testing.T) {
@@ -38,6 +44,19 @@ func TestSaveAndLoadAppSettings(t *testing.T) {
 	}
 	if loaded.IncludePatterns != settings.IncludePatterns {
 		t.Fatalf("unexpected include patterns: %q", loaded.IncludePatterns)
+	}
+
+	loaded.PaginationMode = normalizePaginationMode("infinite-scroll")
+	loaded.ViewMode = normalizeViewMode("gallery")
+	if err := saveAppSettings(loaded); err != nil {
+		t.Fatalf("saveAppSettings failed: %v", err)
+	}
+	reloaded, err := loadAppSettings()
+	if err != nil {
+		t.Fatalf("loadAppSettings failed: %v", err)
+	}
+	if reloaded.PaginationMode != "infinite-scroll" || reloaded.ViewMode != "gallery" {
+		t.Fatalf("unexpected view settings: %#v", reloaded)
 	}
 
 	path := filepath.Join(configDir, settingsAppName, "settings.json")

@@ -14,12 +14,30 @@ type AppSettings struct {
 	OutputFolder    string   `json:"outputFolder"`
 	FilterTypes     []string `json:"filterTypes"`
 	IncludePatterns string   `json:"includePatterns"`
+	PaginationMode  string   `json:"paginationMode"`
+	ViewMode        string   `json:"viewMode"`
 }
 
 func defaultAppSettings() AppSettings {
 	return AppSettings{
-		FilterTypes: []string{"Image", "Video", "Audio", "File"},
+		FilterTypes:    []string{"Image", "Video", "Audio", "File"},
+		PaginationMode: "pagination",
+		ViewMode:       "list",
 	}
+}
+
+func normalizePaginationMode(value string) string {
+	if value == "infinite-scroll" {
+		return "infinite-scroll"
+	}
+	return "pagination"
+}
+
+func normalizeViewMode(value string) string {
+	if value == "gallery" {
+		return "gallery"
+	}
+	return "list"
 }
 
 func settingsFilePath() (string, error) {
@@ -51,6 +69,8 @@ func loadAppSettings() (AppSettings, error) {
 	if len(settings.FilterTypes) == 0 {
 		settings.FilterTypes = defaultAppSettings().FilterTypes
 	}
+	settings.PaginationMode = normalizePaginationMode(settings.PaginationMode)
+	settings.ViewMode = normalizeViewMode(settings.ViewMode)
 	return settings, nil
 }
 
@@ -92,6 +112,8 @@ func (s *BunkrService) SaveSettings(settings AppSettings) error {
 	if len(settings.FilterTypes) == 0 {
 		settings.FilterTypes = defaultAppSettings().FilterTypes
 	}
+	settings.PaginationMode = normalizePaginationMode(settings.PaginationMode)
+	settings.ViewMode = normalizeViewMode(settings.ViewMode)
 
 	s.mu.Lock()
 	s.settings = settings

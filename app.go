@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"golang.org/x/net/html"
@@ -31,6 +30,8 @@ const (
 var (
 	albumSummaryPattern = regexp.MustCompile(`(?i)\(([^)]+)\)\s*(\d+)\s+files?`)
 	albumFileField      = regexp.MustCompile(`(?m)^\s*([a-zA-Z]+):\s*(.+?)\s*,?\s*$`)
+	errTooManyRedirects        = fmt.Errorf("too many redirects")
+	errUnsupportedRedirectHost = fmt.Errorf("Bunkr redirected to an unsupported host")
 	allowedBunkrHosts   = map[string]struct{}{
 		"bunkr.black": {},
 		"bunkr.cr":    {},
@@ -60,10 +61,12 @@ type cdnSignResponse struct {
 
 type BunkrService struct {
 	client *http.Client
+	downloadClient *http.Client
 
 	mu               sync.RWMutex
 	activeAlbum      *Album
 	previewIndex     int
+	fileInfoIndex    int
 	outputFolder     string
 	settings         AppSettings
 	mediaURLCache    map[int64]string
@@ -72,6 +75,8 @@ type BunkrService struct {
 	downloadProgress DownloadProgress
 	cacheMu          sync.Mutex
 	cacheInflight    map[int64]bool
+	apiGate          *rateGate
+	downloadGate     *rateGate
 }
 
 type Album struct {
@@ -96,20 +101,12 @@ type AlbumFile struct {
 
 func NewBunkrService() *BunkrService {
 	s := &BunkrService{
-		client: &http.Client{
-			Timeout: 30 * time.Second,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) >= 5 {
-					return fmt.Errorf("too many redirects")
-				}
-				if !isBunkrHost(req.URL.Hostname()) {
-					return fmt.Errorf("Bunkr redirected to an unsupported host")
-				}
-				return nil
-			},
-		},
+		client:         newAlbumHTTPClient(),
+		downloadClient: newDownloadHTTPClient(),
 		mediaURLCache: make(map[int64]string),
 		cacheInflight: make(map[int64]bool),
+		apiGate:       newRateGate(apiRequestGap),
+		downloadGate:  newRateGate(downloadRequestGap),
 	}
 	settings, err := loadAppSettings()
 	if err != nil {
@@ -220,20 +217,20 @@ func (s *BunkrService) OpenPreview(startIndex int) error {
 
 	s.SetPreviewIndex(startIndex)
 
-	if window, ok := app.Window.GetByName("preview"); ok {
+	if window, ok := app.Window.GetByName(windowPreview); ok {
 		window.ExecJS(fmt.Sprintf("if(window.previewGoTo){window.previewGoTo(%d);}", startIndex))
 		window.Focus()
 		return nil
 	}
 
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name:             "preview",
+		Name:             windowPreview,
 		Title:            "Preview",
 		Width:            920,
 		Height:           720,
 		MinWidth:         640,
 		MinHeight:        480,
-		BackgroundColour: application.RGBA{Red: 38, Green: 42, Blue: 34, Alpha: 255},
+		BackgroundColour: windowBackground,
 		URL:              "/preview.html",
 	})
 	return nil
@@ -269,16 +266,17 @@ func (s *BunkrService) resolveMediaURLUncached(fileID int64) (string, error) {
 		return "", err
 	}
 
-	request, err := http.NewRequest(http.MethodPost, bunkrAPIEndpoint, strings.NewReader(string(payload)))
-	if err != nil {
-		return "", err
-	}
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Referer", referer)
-	request.Header.Set("Origin", bunkrDownloadRef)
-	request.Header.Set("User-Agent", httpUserAgent)
-
-	response, err := s.client.Do(request)
+	response, err := s.doRequestWithRetry(context.Background(), s.client, s.apiGate, func() (*http.Request, error) {
+		req, reqErr := http.NewRequest(http.MethodPost, bunkrAPIEndpoint, strings.NewReader(string(payload)))
+		if reqErr != nil {
+			return nil, reqErr
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Referer", referer)
+		req.Header.Set("Origin", bunkrDownloadRef)
+		req.Header.Set("User-Agent", httpUserAgent)
+		return req, nil
+	})
 	if err != nil {
 		return "", fmt.Errorf("resolving media URL: %w", err)
 	}
@@ -336,13 +334,15 @@ func (s *BunkrService) signCDNURL(parsed *url.URL) (string, error) {
 	}
 
 	signRequestURL := bunkrCDNSignAPI + "?path=" + url.QueryEscape(parsed.Path)
-	request, err := http.NewRequest(http.MethodGet, signRequestURL, nil)
-	if err != nil {
-		return "", err
-	}
-	request.Header.Set("User-Agent", httpUserAgent)
 
-	response, err := s.client.Do(request)
+	response, err := s.doRequestWithRetry(context.Background(), s.client, s.apiGate, func() (*http.Request, error) {
+		req, reqErr := http.NewRequest(http.MethodGet, signRequestURL, nil)
+		if reqErr != nil {
+			return nil, reqErr
+		}
+		req.Header.Set("User-Agent", httpUserAgent)
+		return req, nil
+	})
 	if err != nil {
 		return "", fmt.Errorf("signing CDN URL: %w", err)
 	}
