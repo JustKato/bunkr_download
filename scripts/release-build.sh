@@ -34,6 +34,11 @@ case "$GOOS" in
     export MACOSX_DEPLOYMENT_TARGET="12.0"
     ;;
   linux)
+    if ! pkg-config --exists gtk4 webkitgtk-6.0 2>/dev/null; then
+      echo "Linux build requires GTK4/WebKitGTK 6.0 dev packages." >&2
+      echo "Install: sudo apt-get install libgtk-4-dev libwebkitgtk-6.0-dev pkg-config" >&2
+      exit 1
+    fi
     ;;
   *)
     echo "unsupported GOOS: $GOOS" >&2
