@@ -1,5 +1,7 @@
 # Bunkr Download
 
+![Preview](./assets/preview.png)
+
 Small Wails app for scraping Bunkr albums and downloading files. UI mimics
 old Steam since I like old school cool.
 
