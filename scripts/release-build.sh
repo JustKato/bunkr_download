@@ -9,13 +9,13 @@ OUTPUT="${3:?output path required}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-./scripts/sync-embed-assets.sh
-
 if command -v wails3 >/dev/null 2>&1; then
-  wails3 generate bindings -clean=true -b
+  ./scripts/generate-bindings.sh
 else
   echo "wails3 not installed; using committed frontend bindings"
 fi
+
+./scripts/sync-embed-assets.sh
 
 mkdir -p "$(dirname "$OUTPUT")"
 
