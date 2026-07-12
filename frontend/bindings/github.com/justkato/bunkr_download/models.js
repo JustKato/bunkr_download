@@ -150,6 +150,48 @@ export class AlbumFile {
     }
 }
 
+export class AlbumHistoryEntry {
+    /**
+     * Creates a new AlbumHistoryEntry instance.
+     * @param {Partial<AlbumHistoryEntry>} [$$source = {}] - The source object to create the AlbumHistoryEntry.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("title" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["title"] = "";
+        }
+        if (!("url" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["url"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new AlbumHistoryEntry instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {AlbumHistoryEntry}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new AlbumHistoryEntry(/** @type {Partial<AlbumHistoryEntry>} */($$parsedSource));
+    }
+}
+
 export class AppSettings {
     /**
      * Creates a new AppSettings instance.

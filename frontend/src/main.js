@@ -6,6 +6,7 @@ import {
   GetDownloadProgress,
   GetDownloadedFileIndices,
   GetFileDetails,
+  GetAlbumHistory,
   GetSettings,
   OpenOutputFolder,
   OpenPreview,
@@ -19,6 +20,7 @@ import { initContextMenu, renderFileInfoBody } from "./context-menu.js";
 import { initMenu } from "./menu.js";
 
 const input = document.getElementById("url-input");
+const historySelect = document.getElementById("album-history");
 const goBtn = document.getElementById("go-btn");
 const statusText = document.getElementById("status-text");
 const panelTitle = document.getElementById("panel-title");
@@ -115,6 +117,43 @@ function setLoading(isLoading) {
   goBtn.disabled = isLoading;
   goBtn.textContent = isLoading ? "LOADING..." : "FETCH";
   input.disabled = isLoading;
+  if (historySelect) {
+    historySelect.disabled = isLoading;
+  }
+}
+
+function formatHistoryLabel(entry) {
+  const id = entry.id || "unknown";
+  const title = entry.title || "Untitled";
+  return `${id} | ${title}`;
+}
+
+function renderAlbumHistory(history) {
+  if (!historySelect) {
+    return;
+  }
+
+  historySelect.replaceChildren();
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "HISTORY";
+  historySelect.append(placeholder);
+
+  for (const entry of history) {
+    const option = document.createElement("option");
+    option.value = entry.url || "";
+    option.textContent = formatHistoryLabel(entry);
+    historySelect.append(option);
+  }
+}
+
+async function refreshAlbumHistory() {
+  try {
+    const history = await GetAlbumHistory();
+    renderAlbumHistory(history || []);
+  } catch {
+    renderAlbumHistory([]);
+  }
 }
 
 function eventData(event) {
@@ -568,6 +607,7 @@ async function onFetch() {
     );
     setStatus(`Rendering ${album.files.length} files...`);
     await renderAlbum(album);
+    await refreshAlbumHistory();
     setStatus(`Loaded ${album.files.length} files`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -617,6 +657,17 @@ goBtn.addEventListener("click", onFetch);
 input.addEventListener("keydown", (e) => {
   if (e.key === "Enter") onFetch();
 });
+if (historySelect) {
+  historySelect.addEventListener("change", () => {
+    const url = historySelect.value.trim();
+    historySelect.value = "";
+    if (!url) {
+      return;
+    }
+    input.value = url;
+    onFetch();
+  });
+}
 
 browseFolderBtn.addEventListener("click", () => chooseOutputFolder());
 downloadBtn.addEventListener("click", () => startDownload());
@@ -667,5 +718,6 @@ Events.On("download:progress", (event) => {
 });
 
 loadSettings();
+refreshAlbumHistory();
 updateDownloadControls();
 input.focus();

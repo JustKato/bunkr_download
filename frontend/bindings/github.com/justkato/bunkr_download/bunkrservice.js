@@ -50,11 +50,20 @@ export function GetActiveAlbum() {
 }
 
 /**
+ * @returns {$CancellablePromise<$models.AlbumHistoryEntry[]>}
+ */
+export function GetAlbumHistory() {
+    return $Call.ByID(2223999162).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<$models.DownloadProgress>}
  */
 export function GetDownloadProgress() {
     return $Call.ByID(4034910168).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType2($result);
+        return $$createType4($result);
     }));
 }
 
@@ -63,7 +72,7 @@ export function GetDownloadProgress() {
  */
 export function GetDownloadedFileIndices() {
     return $Call.ByID(3721437933).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType5($result);
     }));
 }
 
@@ -73,7 +82,7 @@ export function GetDownloadedFileIndices() {
  */
 export function GetFileDetails(index) {
     return $Call.ByID(743151101, index).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
+        return $$createType7($result);
     }));
 }
 
@@ -96,7 +105,7 @@ export function GetPreviewIndex() {
  */
 export function GetSettings() {
     return $Call.ByID(2857995934).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType6($result);
+        return $$createType8($result);
     }));
 }
 
@@ -183,8 +192,10 @@ export function ValidateURL(raw) {
 // Private type creation functions
 const $$createType0 = $models.Album.createFrom;
 const $$createType1 = $Create.Nullable($$createType0);
-const $$createType2 = $models.DownloadProgress.createFrom;
-const $$createType3 = $Create.Array($Create.Any);
-const $$createType4 = $models.FileDetails.createFrom;
-const $$createType5 = $Create.Nullable($$createType4);
-const $$createType6 = $models.AppSettings.createFrom;
+const $$createType2 = $models.AlbumHistoryEntry.createFrom;
+const $$createType3 = $Create.Array($$createType2);
+const $$createType4 = $models.DownloadProgress.createFrom;
+const $$createType5 = $Create.Array($Create.Any);
+const $$createType6 = $models.FileDetails.createFrom;
+const $$createType7 = $Create.Nullable($$createType6);
+const $$createType8 = $models.AppSettings.createFrom;

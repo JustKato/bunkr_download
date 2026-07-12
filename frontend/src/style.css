@@ -208,6 +208,27 @@ body {
   box-shadow: 0 0 0 1px var(--accent-dim);
 }
 
+.address-history {
+  height: 24px;
+  max-width: 240px;
+  min-width: 120px;
+  padding: 0 6px;
+  background: var(--input-bg);
+  color: var(--text);
+  font-family: "Courier New", monospace;
+  font-size: 11px;
+  border-top: 1px solid var(--bevel-dark);
+  border-left: 1px solid var(--bevel-dark);
+  border-bottom: 1px solid var(--bevel-light);
+  border-right: 1px solid var(--bevel-light);
+  outline: none;
+  cursor: pointer;
+}
+
+.address-history:focus {
+  box-shadow: 0 0 0 1px var(--accent-dim);
+}
+
 .go-btn {
   height: 24px;
   padding: 0 16px;

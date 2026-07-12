@@ -10,6 +10,7 @@ export {
 export {
     Album,
     AlbumFile,
+    AlbumHistoryEntry,
     AppSettings,
     DownloadOptions,
     DownloadProgress,

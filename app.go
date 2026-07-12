@@ -184,6 +184,8 @@ func (s *BunkrService) ScrapeAlbum(raw string) (*Album, error) {
 	s.previewIndex = 0
 	s.mu.Unlock()
 
+	_ = recordAlbumHistory(album.URL, album.Title)
+
 	return album, nil
 }
 
