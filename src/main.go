@@ -20,6 +20,7 @@ func main() {
 	app := application.New(application.Options{
 		Name:        "Bunkr Downloader",
 		Description: "Bunkr album downloader",
+		Icon:        appIcon,
 		Services: []application.Service{
 			application.NewService(NewBunkrService()),
 		},

@@ -2,6 +2,7 @@
 build/bin/
 bin/
 src/embedded/
+src/*.syso
 
 *.exe
 *.app
