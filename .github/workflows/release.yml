@@ -57,6 +57,10 @@ jobs:
             libwebkitgtk-6.0-dev \
             libglib2.0-dev \
             libwayland-dev
+          ARCH="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || gcc -print-multiarch)"
+          PKG_CONFIG_PATH="/usr/lib/${ARCH}/pkgconfig:/usr/share/pkgconfig:/usr/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
+          export PKG_CONFIG_PATH
           pkg-config --modversion gtk4
           pkg-config --modversion webkitgtk-6.0
 
