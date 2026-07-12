@@ -46,14 +46,8 @@ jobs:
           go-version: "1.25.x"
           cache: true
 
-      - name: Install Wails CLI
-        shell: bash
-        run: |
-          go install github.com/wailsapp/wails/v3/cmd/wails3@latest
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-
       - name: Install Linux build dependencies
-        if: matrix.goos == 'linux'
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -62,6 +56,12 @@ jobs:
             libgtk-4-dev \
             libwebkitgtk-6.0-dev \
             libglib2.0-dev
+
+      - name: Install Wails CLI
+        shell: bash
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Build binary
         shell: bash
