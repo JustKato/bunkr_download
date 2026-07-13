@@ -56,3 +56,7 @@ The [Release workflow](.github/workflows/release.yml) uploads:
 - `bunkrdownload-macos-amd64.dmg`
 
 All builds target 64-bit x86 (`GOARCH=amd64`).
+
+## Disclaimer
+
+Commisioned by `@T1gger`, thanks for the fun project :)
