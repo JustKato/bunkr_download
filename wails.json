@@ -30,7 +30,7 @@
     "description": "Bunkr album downloader",
     "copyright": "(c) 2026 danlegt",
     "comments": "Desktop client for browsing and downloading Bunkr albums",
-    "version": "0.1.0"
+    "version": "0.1.5"
   },
   "protocols": [
     {
