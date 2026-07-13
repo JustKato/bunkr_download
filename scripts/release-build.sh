@@ -69,4 +69,6 @@ esac
 GOOS="$GOOS" GOARCH="$GOARCH" CGO_ENABLED="$CGO_ENABLED" \
   go build "${BUILD_FLAGS[@]}" -ldflags="${LDFLAGS[*]}" -o "$OUTPUT" ./src
 
+chmod +x "$OUTPUT"
+
 echo "Built $OUTPUT"
